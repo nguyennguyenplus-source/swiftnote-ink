@@ -75,6 +75,7 @@ struct ImageGpuTex {
     view: wgpu::TextureView,
     _mip_levels: u32,
     byte_size: usize,
+    rendered_scale_milli: u32,
 }
 
 struct GpuTile {
@@ -692,6 +693,7 @@ impl UnifiedRenderer {
                 view,
                 _mip_levels: mips,
                 byte_size: (w as usize) * (h as usize) * 4,
+                rendered_scale_milli: 0,
             },
         );
         Ok(())
@@ -725,6 +727,28 @@ impl UnifiedRenderer {
             self.pdf_vram_bytes = self.pdf_vram_bytes.saturating_sub(old.byte_size);
         }
         self.pdf_vram_bytes = self.pdf_vram_bytes.saturating_add(byte_size);
+        let uploaded_scale_milli = doc
+            .pages
+            .iter()
+            .find_map(|p| match p.background {
+                PageBackground::Pdf {
+                    asset_id,
+                    page_index,
+                    ..
+                } if asset_id == tile.asset_id.0
+                    && page_index == tile.page_index
+                    && p.width_pt > 0.0 =>
+                {
+                    let full_w = if tile.tile_cols <= 1 {
+                        f64::from(tile.width_px)
+                    } else {
+                        f64::from((tile.tile_cols - 1) * MAX_PDF_TILE_PX + tile.width_px)
+                    };
+                    Some(((full_w / p.width_pt) * 1000.0).round().max(50.0) as u32)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| self.last_pdf_scale_milli.max(50));
         self.pdf_textures.insert(
             key,
             ImageGpuTex {
@@ -732,6 +756,7 @@ impl UnifiedRenderer {
                 view,
                 _mip_levels: mips,
                 byte_size,
+                rendered_scale_milli: uploaded_scale_milli,
             },
         );
         if let Some(pos) = self.pdf_lru.iter().position(|k| *k == key) {
@@ -847,9 +872,10 @@ impl UnifiedRenderer {
                         tile_cols: req.tile_cols,
                         tile_rows: req.tile_rows,
                     };
-                    if !self.pdf_textures.contains_key(&key)
-                        && !self.in_flight_pdf.contains(&key)
-                        && worker.request_tile(req)
+                    let needs_fetch = self.pdf_textures.get(&key).is_none_or(|existing| {
+                        existing.rendered_scale_milli.abs_diff(scale_milli) > 150
+                    });
+                    if needs_fetch && !self.in_flight_pdf.contains(&key) && worker.request_tile(req)
                     {
                         self.in_flight_pdf.insert(key);
                     }
@@ -1059,10 +1085,11 @@ impl UnifiedRenderer {
                     let ndc_x1 = (sx1 / vp_w as f32) * 2.0 - 1.0;
                     let ndc_y1 = 1.0 - (sy1 / vp_h as f32) * 2.0;
 
-                    let u_off = self.uniform_arena.push(&BlitUniforms {
-                        dst_rect_ndc: [ndc_x0, ndc_y0, ndc_x1, ndc_y1],
-                        tint: [1.0, 1.0, 1.0, 1.0],
-                    });
+                    let u_off = self.uniform_arena.push(&BlitUniforms::new(
+                        [ndc_x0, ndc_y0, ndc_x1, ndc_y1],
+                        [1.0, 1.0, 1.0, 1.0],
+                        BlitUniforms::FULL_UV,
+                    ));
                     let bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                         label: Some("swiftnote_tile_blit_bg"),
                         layout: &self.blit_bgl,
@@ -1109,6 +1136,7 @@ impl UnifiedRenderer {
                         BrushKind::Pencil => 1.0,
                         BrushKind::HighlighterRound | BrushKind::HighlighterSquare => 2.0,
                     };
+                    let rgb = self.color_to_shader_rgb(color);
                     let stroke_u_off = self.uniform_arena.push(&StrokeUniforms {
                         bounds_pt: [
                             vis_page.min_x as f32,
@@ -1117,9 +1145,9 @@ impl UnifiedRenderer {
                             vis_page.max_y as f32,
                         ],
                         color: [
-                            f32::from(color.r) / 255.0,
-                            f32::from(color.g) / 255.0,
-                            f32::from(color.b) / 255.0,
+                            rgb[0],
+                            rgb[1],
+                            rgb[2],
                             if is_hl {
                                 1.0
                             } else {
@@ -1133,10 +1161,11 @@ impl UnifiedRenderer {
                     } else {
                         1.0
                     };
-                    let blit_u_off = self.uniform_arena.push(&BlitUniforms {
-                        dst_rect_ndc: [-1.0, 1.0, 1.0, -1.0],
-                        tint: [1.0, 1.0, 1.0, hl_alpha],
-                    });
+                    let blit_u_off = self.uniform_arena.push(&BlitUniforms::new(
+                        [-1.0, 1.0, 1.0, -1.0],
+                        [1.0, 1.0, 1.0, hl_alpha],
+                        BlitUniforms::FULL_UV,
+                    ));
                     let ps_x0 = (page_tl_scr.x * f64::from(display_scale))
                         .floor()
                         .clamp(0.0, f64::from(vp_w)) as u32;
@@ -1386,7 +1415,13 @@ impl UnifiedRenderer {
                 let pdf_rect = if pk.tile_cols == 1 && pk.tile_rows == 1 {
                     Rect::new(0.0, 0.0, page.width_pt, page.height_pt)
                 } else {
-                    let scale = f64::from(self.last_pdf_scale_milli.max(1000)) / 1000.0;
+                    let cached_scale = self
+                        .pdf_textures
+                        .get(&pk)
+                        .map(|t| t.rendered_scale_milli)
+                        .filter(|&s| s > 0)
+                        .unwrap_or(self.last_pdf_scale_milli.max(50));
+                    let scale = f64::from(cached_scale) / 1000.0;
                     let full_w = (page.width_pt * scale).round().max(1.0);
                     let full_h = (page.height_pt * scale).round().max(1.0);
                     let x0_pt = (f64::from(pk.tile_x * MAX_PDF_TILE_PX) / full_w) * page.width_pt;
@@ -1453,7 +1488,14 @@ impl UnifiedRenderer {
             u_off: u32,
             blit_u_off: u32,
             is_highlighter: bool,
+            is_batchable_opaque: bool,
         }
+        let tile_src_uv = [
+            0.0,
+            0.0,
+            w_px as f32 / TILE_SIZE_PX as f32,
+            h_px as f32 / TILE_SIZE_PX as f32,
+        ];
         let candidate_ids = page.index.query_rect(tile_rect);
         let mut all_verts: Vec<GpuContourVertex> = Vec::new();
         let mut all_indices: Vec<u32> = Vec::new();
@@ -1486,11 +1528,14 @@ impl UnifiedRenderer {
                 .color
                 .effective_for_paper(polarity, settings.auto_invert_monochrome_ink);
             let is_hl = stroke.style.is_highlighter();
+            let is_batchable_opaque =
+                !is_hl && !matches!(stroke.style.kind, BrushKind::Pencil) && eff_col.a == 255;
             let mode = match stroke.style.kind {
                 BrushKind::Pen | BrushKind::Calligraphy { .. } => 0.0,
                 BrushKind::Pencil => 1.0,
                 BrushKind::HighlighterRound | BrushKind::HighlighterSquare => 2.0,
             };
+            let eff_rgb = self.color_to_shader_rgb(eff_col);
             let u_off = self.uniform_arena.push(&StrokeUniforms {
                 bounds_pt: [
                     tile_rect.min_x as f32,
@@ -1499,9 +1544,9 @@ impl UnifiedRenderer {
                     tile_rect.max_y as f32,
                 ],
                 color: [
-                    f32::from(eff_col.r) / 255.0,
-                    f32::from(eff_col.g) / 255.0,
-                    f32::from(eff_col.b) / 255.0,
+                    eff_rgb[0],
+                    eff_rgb[1],
+                    eff_rgb[2],
                     if is_hl {
                         1.0
                     } else {
@@ -1510,9 +1555,9 @@ impl UnifiedRenderer {
                 ],
                 mode: [mode, 0.0, 0.0, 0.0],
             });
-            let blit_u_off = self.uniform_arena.push(&BlitUniforms {
-                dst_rect_ndc: [-1.0, 1.0, 1.0, -1.0],
-                tint: [
+            let blit_u_off = self.uniform_arena.push(&BlitUniforms::new(
+                [-1.0, 1.0, 1.0, -1.0],
+                [
                     1.0,
                     1.0,
                     1.0,
@@ -1522,7 +1567,8 @@ impl UnifiedRenderer {
                         1.0
                     },
                 ],
-            });
+                tile_src_uv,
+            ));
 
             stroke_draws.push(TileStrokeDraw {
                 v_off: base_v,
@@ -1531,6 +1577,7 @@ impl UnifiedRenderer {
                 u_off,
                 blit_u_off,
                 is_highlighter: is_hl,
+                is_batchable_opaque,
             });
         }
 
@@ -1631,81 +1678,33 @@ impl UnifiedRenderer {
             }
         }
 
-        // 3. Dry strokes (100% identical shader + contour + highlighter single-stroke mask to wet ink)
+        // 3. Dry strokes (100% identical shader + contour + MSAA + highlighter isolation to wet ink)
         if !stroke_draws.is_empty() {
-            for sd in &stroke_draws {
-                if sd.is_highlighter {
-                    let (_, hl_view) = &self.hl_resolve_tex;
-                    {
-                        let (attach_view, resolve) = if let Some((_, msaa_v)) = &self.hl_msaa_tex {
-                            (msaa_v, Some(hl_view))
-                        } else {
-                            (hl_view, None)
-                        };
-                        let mut hl_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                            label: Some("swiftnote_tile_hl_mask_pass"),
-                            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                                view: attach_view,
-                                depth_slice: None,
-                                resolve_target: resolve,
-                                ops: wgpu::Operations {
-                                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                                    store: wgpu::StoreOp::Store,
-                                },
-                            })],
-                            depth_stencil_attachment: None,
-                            timestamp_writes: None,
-                            occlusion_query_set: None,
-                            multiview_mask: None,
-                        });
-                        let pipe = if self.hl_msaa_tex.is_some() {
-                            &self.stroke_pipeline_msaa
-                        } else {
-                            &self.stroke_pipeline_1x
-                        };
-                        hl_pass.set_pipeline(pipe);
-                        hl_pass.set_bind_group(0, &self.stroke_bg, &[sd.u_off]);
-                        hl_pass.set_vertex_buffer(0, self.scratch_vbuf.slice(..));
-                        hl_pass.set_index_buffer(
-                            self.scratch_ibuf.slice(..),
-                            wgpu::IndexFormat::Uint32,
-                        );
-                        hl_pass.draw_indexed(
-                            sd.i_off..(sd.i_off + sd.i_count),
-                            sd.v_off as i32,
-                            0..1,
-                        );
+            let mut idx = 0usize;
+            while idx < stroke_draws.len() {
+                let first = &stroke_draws[idx];
+                let mut end = idx + 1;
+                if first.is_batchable_opaque {
+                    while end < stroke_draws.len() && stroke_draws[end].is_batchable_opaque {
+                        end += 1;
                     }
-                    let hl_blit_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some("swiftnote_tile_hl_blit"),
-                        layout: &self.blit_bgl,
-                        entries: &[
-                            wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                    buffer: &self.uniform_arena.buffer,
-                                    offset: 0,
-                                    size: NonZeroU64::new(64),
-                                }),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 1,
-                                resource: wgpu::BindingResource::TextureView(hl_view),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 2,
-                                resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
-                            },
-                        ],
-                    });
-                    let mut comp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: Some("swiftnote_tile_hl_comp"),
+                }
+                let batch = &stroke_draws[idx..end];
+                let (_, hl_view) = &self.hl_resolve_tex;
+                {
+                    let (attach_view, resolve) = if let Some((_, msaa_v)) = &self.hl_msaa_tex {
+                        (msaa_v, Some(hl_view))
+                    } else {
+                        (hl_view, None)
+                    };
+                    let mut stroke_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("swiftnote_tile_stroke_pass"),
                         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: &tile_view,
+                            view: attach_view,
                             depth_slice: None,
-                            resolve_target: None,
+                            resolve_target: resolve,
                             ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Load,
+                                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                                 store: wgpu::StoreOp::Store,
                             },
                         })],
@@ -1714,101 +1713,75 @@ impl UnifiedRenderer {
                         occlusion_query_set: None,
                         multiview_mask: None,
                     });
-                    let pipe = if polarity == PaperPolarity::Blackboard {
-                        &self.blit_alpha_pipeline
+                    let pipe = if self.hl_msaa_tex.is_some() {
+                        &self.stroke_pipeline_msaa
                     } else {
-                        &self.blit_multiply_pipeline
+                        &self.stroke_pipeline_1x
                     };
-                    comp.set_pipeline(pipe);
-                    comp.set_bind_group(0, &hl_blit_bg, &[sd.blit_u_off]);
-                    comp.draw(0..6, 0..1);
-                } else {
-                    // Direct Pen/Pencil/Calligraphy stroke rendered with identical 4x MSAA mask + composite
-                    let (_, hl_view) = &self.hl_resolve_tex;
-                    {
-                        let (attach_view, resolve) = if let Some((_, msaa_v)) = &self.hl_msaa_tex {
-                            (msaa_v, Some(hl_view))
-                        } else {
-                            (hl_view, None)
-                        };
-                        let mut stroke_pass =
-                            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                                label: Some("swiftnote_tile_stroke_pass"),
-                                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                                    view: attach_view,
-                                    depth_slice: None,
-                                    resolve_target: resolve,
-                                    ops: wgpu::Operations {
-                                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                                        store: wgpu::StoreOp::Store,
-                                    },
-                                })],
-                                depth_stencil_attachment: None,
-                                timestamp_writes: None,
-                                occlusion_query_set: None,
-                                multiview_mask: None,
-                            });
-                        let pipe = if self.hl_msaa_tex.is_some() {
-                            &self.stroke_pipeline_msaa
-                        } else {
-                            &self.stroke_pipeline_1x
-                        };
-                        stroke_pass.set_pipeline(pipe);
+                    stroke_pass.set_pipeline(pipe);
+                    stroke_pass.set_viewport(0.0, 0.0, w_px as f32, h_px as f32, 0.0, 1.0);
+                    stroke_pass.set_scissor_rect(0, 0, w_px, h_px);
+                    stroke_pass.set_vertex_buffer(0, self.scratch_vbuf.slice(..));
+                    stroke_pass
+                        .set_index_buffer(self.scratch_ibuf.slice(..), wgpu::IndexFormat::Uint32);
+                    for sd in batch {
                         stroke_pass.set_bind_group(0, &self.stroke_bg, &[sd.u_off]);
-                        stroke_pass.set_vertex_buffer(0, self.scratch_vbuf.slice(..));
-                        stroke_pass.set_index_buffer(
-                            self.scratch_ibuf.slice(..),
-                            wgpu::IndexFormat::Uint32,
-                        );
                         stroke_pass.draw_indexed(
                             sd.i_off..(sd.i_off + sd.i_count),
                             sd.v_off as i32,
                             0..1,
                         );
                     }
-                    let stroke_blit_bg =
-                        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                            label: Some("swiftnote_tile_stroke_blit"),
-                            layout: &self.blit_bgl,
-                            entries: &[
-                                wgpu::BindGroupEntry {
-                                    binding: 0,
-                                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                        buffer: &self.uniform_arena.buffer,
-                                        offset: 0,
-                                        size: NonZeroU64::new(64),
-                                    }),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 1,
-                                    resource: wgpu::BindingResource::TextureView(hl_view),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 2,
-                                    resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
-                                },
-                            ],
-                        });
-                    let mut comp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: Some("swiftnote_tile_stroke_comp"),
-                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                            view: &tile_view,
-                            depth_slice: None,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Load,
-                                store: wgpu::StoreOp::Store,
-                            },
-                        })],
-                        depth_stencil_attachment: None,
-                        timestamp_writes: None,
-                        occlusion_query_set: None,
-                        multiview_mask: None,
-                    });
-                    comp.set_pipeline(&self.blit_alpha_pipeline);
-                    comp.set_bind_group(0, &stroke_blit_bg, &[sd.blit_u_off]);
-                    comp.draw(0..6, 0..1);
                 }
+
+                let stroke_blit_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("swiftnote_tile_stroke_blit"),
+                    layout: &self.blit_bgl,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                buffer: &self.uniform_arena.buffer,
+                                offset: 0,
+                                size: NonZeroU64::new(64),
+                            }),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(hl_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
+                        },
+                    ],
+                });
+                let mut comp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("swiftnote_tile_stroke_comp"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &tile_view,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                let pipe = if first.is_highlighter && polarity != PaperPolarity::Blackboard {
+                    &self.blit_multiply_pipeline
+                } else {
+                    &self.blit_alpha_pipeline
+                };
+                comp.set_pipeline(pipe);
+                comp.set_bind_group(0, &stroke_blit_bg, &[first.blit_u_off]);
+                comp.draw(0..6, 0..1);
+
+                idx = end;
             }
         }
 
@@ -1824,7 +1797,24 @@ impl UnifiedRenderer {
             byte_size,
             req_gen,
         );
-        let _ = (&self.tile_msaa_tex, w_px, h_px);
+        let _ = &self.tile_msaa_tex;
+    }
+
+    #[inline]
+    fn color_to_shader_rgb(&self, c: Color) -> [f32; 3] {
+        if self.surface_format.is_srgb() {
+            [
+                srgb_u8_to_linear(c.r),
+                srgb_u8_to_linear(c.g),
+                srgb_u8_to_linear(c.b),
+            ]
+        } else {
+            [
+                f32::from(c.r) / 255.0,
+                f32::from(c.g) / 255.0,
+                f32::from(c.b) / 255.0,
+            ]
+        }
     }
 
     fn fill_vertex_scratch(&mut self, mesh: &ContourMesh) {
@@ -1892,6 +1882,16 @@ impl UnifiedRenderer {
             make_arena_bind_group(&self.device, &self.paper_bgl, &self.uniform_arena.buffer);
         self.stroke_bg =
             make_arena_bind_group(&self.device, &self.stroke_bgl, &self.uniform_arena.buffer);
+    }
+}
+
+#[inline]
+fn srgb_u8_to_linear(v: u8) -> f32 {
+    let s = f32::from(v) / 255.0;
+    if s <= 0.04045 {
+        s / 12.92
+    } else {
+        ((s + 0.055) / 1.055).powf(2.4)
     }
 }
 
@@ -2002,6 +2002,120 @@ fn build_stroke_pipeline(
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use swiftnote_core::{Stroke, StrokeId, StrokePoint};
+
+    fn render_doc_to_rgba(
+        renderer: &mut UnifiedRenderer,
+        doc: &Document,
+        settings: &AppSettings,
+        viewport: ViewportTransform,
+        vp_px: (u32, u32),
+        display_scale: f32,
+    ) -> Vec<u8> {
+        let tex = renderer.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("test_offscreen_target"),
+            size: wgpu::Extent3d {
+                width: vp_px.0,
+                height: vp_px.1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: renderer.surface_format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
+
+        renderer.render_canvas(
+            &view,
+            vp_px,
+            display_scale,
+            viewport,
+            doc,
+            settings,
+            [0.9, 0.9, 0.9, 1.0],
+            ActiveTool::Pen(0),
+            None,
+        );
+
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let unpadded_bpr = vp_px.0 * 4;
+        let padded_bpr = unpadded_bpr.div_ceil(align) * align;
+        let buf_size = u64::from(padded_bpr) * u64::from(vp_px.1);
+        let readback = renderer.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("test_readback_buf"),
+            size: buf_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let mut encoder = renderer
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("test_readback_enc"),
+            });
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &tex,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &readback,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_bpr),
+                    rows_per_image: Some(vp_px.1),
+                },
+            },
+            wgpu::Extent3d {
+                width: vp_px.0,
+                height: vp_px.1,
+                depth_or_array_layers: 1,
+            },
+        );
+        renderer.queue.submit(std::iter::once(encoder.finish()));
+
+        let slice = readback.slice(..);
+        let (tx, rx) = std::sync::mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |res| {
+            let _ = tx.send(res);
+        });
+        renderer
+            .device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .unwrap();
+        rx.recv().unwrap().unwrap();
+
+        let mapped = slice.get_mapped_range().unwrap();
+        let is_bgra = matches!(
+            renderer.surface_format,
+            wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
+        );
+        let mut rgba = Vec::with_capacity((vp_px.0 * vp_px.1 * 4) as usize);
+        for row in 0..vp_px.1 as usize {
+            let start = row * padded_bpr as usize;
+            let row_bytes = &mapped[start..start + unpadded_bpr as usize];
+            for px in row_bytes.as_chunks::<4>().0 {
+                if is_bgra {
+                    rgba.extend_from_slice(&[px[2], px[1], px[0], px[3]]);
+                } else {
+                    rgba.extend_from_slice(px);
+                }
+            }
+        }
+        drop(mapped);
+        readback.unmap();
+        rgba
+    }
+
+    fn pixel_at(rgba: &[u8], w: u32, x: u32, y: u32) -> [u8; 4] {
+        let idx = ((y * w + x) * 4) as usize;
+        [rgba[idx], rgba[idx + 1], rgba[idx + 2], rgba[idx + 3]]
+    }
 
     #[test]
     fn wgsl_shaders_compile_and_wet_matches_dry_pipeline() {
@@ -2018,5 +2132,176 @@ mod tests {
             }
             Err(e) => panic!("unexpected GPU init error: {e}"),
         }
+    }
+
+    #[test]
+    fn gpu_readback_verifies_srgb_blackboard_mipmap_pdf_and_wet_dry_parity() {
+        let mut renderer = match UnifiedRenderer::new_headless() {
+            Ok(r) => r,
+            Err(GpuError::NoAdapter) => return,
+            Err(e) => panic!("unexpected GPU init error: {e}"),
+        };
+
+        let mut doc = Document::new_untitled("gpu_test", "GPU Test", 0);
+        let page_id = doc.pages[0].id;
+        doc.pages[0].background = PageBackground::Procedural {
+            template: PaperTemplate::Blank,
+            polarity: PaperPolarity::Blackboard,
+        };
+        let page_w = doc.pages[0].width_pt;
+        let viewport = ViewportTransform {
+            pan_x: page_w * 0.5,
+            pan_y: 0.0,
+            zoom: 1.0,
+        };
+        let vp_px = (600, 160);
+
+        // 1. Verify Blackboard background matches sRGB #16171B (22, 23, 27) accurately
+        let settings_auto = AppSettings::default();
+        let bg_pixels =
+            render_doc_to_rgba(&mut renderer, &doc, &settings_auto, viewport, vp_px, 1.0);
+        let bg = pixel_at(&bg_pixels, vp_px.0, 40, 40);
+        assert!(
+            bg[0].abs_diff(22) <= 3 && bg[1].abs_diff(23) <= 3 && bg[2].abs_diff(27) <= 3,
+            "expected Blackboard #16171B, got {bg:?}"
+        );
+
+        // 2. Verify monochrome black stroke auto-inverts to chalk white on Blackboard when enabled,
+        //    and stays dark when toggled off.
+        let black_style = BrushStyle {
+            kind: BrushKind::Pen,
+            color: Color::BLACK,
+            width_pt: 8.0,
+            pressure_sensitive: false,
+        };
+        let stroke_points = vec![
+            StrokePoint {
+                x: 470.0,
+                y: 80.0,
+                width: 8.0,
+                tilt_x: 0.0,
+                tilt_y: 0.0,
+            },
+            StrokePoint {
+                x: 560.0,
+                y: 80.0,
+                width: 8.0,
+                tilt_x: 0.0,
+                tilt_y: 0.0,
+            },
+        ];
+
+        // Render as wet ink first across the x = 512 tile seam into the 83px right-edge tile
+        let mut tess = StrokeTessellator::new();
+        let mut mesh = ContourMesh::default();
+        tess.tessellate_stroke(&stroke_points, black_style, &mut mesh);
+        renderer.update_active_stroke(page_id, &mesh, black_style);
+        let wet_rgba =
+            render_doc_to_rgba(&mut renderer, &doc, &settings_auto, viewport, vp_px, 1.0);
+        renderer.clear_active_stroke();
+
+        // Now commit the exact same stroke as dry ink (tests tile batching + 83px right edge tile)
+        doc.pages[0].insert_stroke_sorted(Stroke::from_points(
+            StrokeId(1),
+            black_style,
+            stroke_points.clone(),
+        ));
+        renderer.clear_all_tiles();
+        let dry_rgba =
+            render_doc_to_rgba(&mut renderer, &doc, &settings_auto, viewport, vp_px, 1.0);
+
+        let wet_left = pixel_at(&wet_rgba, vp_px.0, 490, 80);
+        let dry_left = pixel_at(&dry_rgba, vp_px.0, 490, 80);
+        let wet_edge = pixel_at(&wet_rgba, vp_px.0, 540, 80);
+        let dry_edge = pixel_at(&dry_rgba, vp_px.0, 540, 80);
+        assert!(
+            wet_left[0] > 200 && dry_left[0] > 200 && wet_edge[0] > 200 && dry_edge[0] > 200,
+            "expected inverted light ink on Blackboard: wet=({wet_left:?}, {wet_edge:?}) dry=({dry_left:?}, {dry_edge:?})"
+        );
+
+        // Compare painted centroid & bounding box across both interior and right-edge tiles
+        let measure_ink = |rgba: &[u8]| -> (f64, f64, u32, u32, u32) {
+            let mut sum_x = 0.0_f64;
+            let mut sum_y = 0.0_f64;
+            let mut count = 0_u32;
+            let mut min_x = u32::MAX;
+            let mut max_x = 0_u32;
+            for y in 60..100 {
+                for x in 460..580 {
+                    let p = pixel_at(rgba, vp_px.0, x, y);
+                    if p[0] > 150 {
+                        sum_x += f64::from(x);
+                        sum_y += f64::from(y);
+                        count += 1;
+                        min_x = min_x.min(x);
+                        max_x = max_x.max(x);
+                    }
+                }
+            }
+            (
+                sum_x / f64::from(count),
+                sum_y / f64::from(count),
+                count,
+                min_x,
+                max_x,
+            )
+        };
+        let (w_cx, w_cy, w_cnt, w_min_x, w_max_x) = measure_ink(&wet_rgba);
+        let (d_cx, d_cy, d_cnt, d_min_x, d_max_x) = measure_ink(&dry_rgba);
+        assert!(w_cnt > 100 && d_cnt > 100);
+        assert!(
+            (w_cx - d_cx).abs() <= 0.5 && (w_cy - d_cy).abs() <= 0.5,
+            "wet vs dry centroid shifted: wet=({w_cx:.2},{w_cy:.2}) dry=({d_cx:.2},{d_cy:.2})"
+        );
+        assert!(
+            w_min_x.abs_diff(d_min_x) <= 1 && w_max_x.abs_diff(d_max_x) <= 1,
+            "wet vs dry bbox shifted across tile edge: wet=[{w_min_x}..{w_max_x}] dry=[{d_min_x}..{d_max_x}]"
+        );
+
+        // Toggle auto_invert_monochrome_ink = false -> black stroke stays dark (< 60)
+        let settings_no_invert = AppSettings {
+            auto_invert_monochrome_ink: false,
+            ..AppSettings::default()
+        };
+        renderer.clear_all_tiles();
+        let no_inv_rgba = render_doc_to_rgba(
+            &mut renderer,
+            &doc,
+            &settings_no_invert,
+            viewport,
+            vp_px,
+            1.0,
+        );
+        let dark_ink = pixel_at(&no_inv_rgba, vp_px.0, 500, 80);
+        assert!(dark_ink[0] < 60 && dark_ink[1] < 60 && dark_ink[2] < 60);
+
+        // 3. Verify 64-byte BlitUniforms + mipmap generation works for both RGBA image upload and PDF tile upload
+        let white_rgba = vec![255u8; 64 * 64 * 4];
+        let asset = ImageAsset::from_rgba(64, 64, &white_rgba).unwrap();
+        let aid = doc.insert_image_asset(asset);
+        doc.add_image_placement(page_id, aid, Rect::new(40.0, 20.0, 120.0, 100.0))
+            .unwrap();
+        renderer.clear_all_tiles();
+        let img_rgba =
+            render_doc_to_rgba(&mut renderer, &doc, &settings_auto, viewport, vp_px, 1.0);
+        let img_px = pixel_at(&img_rgba, vp_px.0, 80, 60);
+        assert!(
+            img_px[0] > 240 && img_px[1] > 240 && img_px[2] > 240,
+            "expected bright placed image pixel, got {img_px:?}"
+        );
+
+        let pdf_tile = PdfTileResult {
+            generation: 1,
+            asset_id: AssetId::from_bytes(b"mock-pdf"),
+            page_index: 0,
+            tile_x: 0,
+            tile_y: 0,
+            tile_cols: 1,
+            tile_rows: 1,
+            width_px: 32,
+            height_px: 32,
+            rgba: vec![200u8; 32 * 32 * 4],
+        };
+        renderer.upload_pdf_tile(pdf_tile, &doc).unwrap();
     }
 }

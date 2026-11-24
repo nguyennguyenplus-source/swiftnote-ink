@@ -76,6 +76,7 @@ enum ActiveStrokeSource {
 pub struct SdlInputMapper {
     input_guard: InputGuard,
     viewport_logical_size: (f32, f32),
+    coord_scale: f32,
     pen_in_proximity: bool,
     pen_barrel_eraser: bool,
     pen_down_eraser: bool,
@@ -105,6 +106,7 @@ impl SdlInputMapper {
         Self {
             input_guard: InputGuard::new(),
             viewport_logical_size: (1280.0, 800.0),
+            coord_scale: 1.0,
             pen_in_proximity: false,
             pen_barrel_eraser: false,
             pen_down_eraser: false,
@@ -126,6 +128,43 @@ impl SdlInputMapper {
 
     pub fn set_viewport_logical_size(&mut self, width: f32, height: f32) {
         self.viewport_logical_size = (width.max(1.0), height.max(1.0));
+    }
+
+    pub fn set_coord_scale(&mut self, coord_scale: f32) {
+        if coord_scale.is_finite() && coord_scale > 0.0 {
+            self.coord_scale = coord_scale.clamp(0.25, 4.0);
+        }
+    }
+
+    pub fn has_pending_egui_events(&self) -> bool {
+        !self.egui_events.is_empty()
+    }
+
+    /// Maps direct SDL pointer-press / wheel coordinates into logical egui/canvas coordinates
+    /// so UI layers can be hit-tested even before a hover frame runs.
+    pub fn sdl_pointer_pos_logical(&self, event: &SdlEvent) -> Option<Pos2> {
+        match event {
+            SdlEvent::PenDown { x, y, .. } => {
+                Some(Pos2::new(x * self.coord_scale, y * self.coord_scale))
+            }
+            SdlEvent::MouseButtonDown { which, x, y, .. } if !Self::is_synthetic_mouse(*which) => {
+                Some(Pos2::new(x * self.coord_scale, y * self.coord_scale))
+            }
+            SdlEvent::MouseWheel {
+                which,
+                mouse_x,
+                mouse_y,
+                ..
+            } if !Self::is_synthetic_mouse(*which) => Some(Pos2::new(
+                mouse_x * self.coord_scale,
+                mouse_y * self.coord_scale,
+            )),
+            SdlEvent::FingerDown { x, y, .. } => {
+                let p = self.normalized_touch_to_screen(*x, *y);
+                Some(Pos2::new(p.x as f32, p.y as f32))
+            }
+            _ => None,
+        }
     }
 
     #[cfg(test)]
@@ -399,7 +438,10 @@ impl SdlInputMapper {
         match win_event {
             WindowEvent::Resized(w, h) => {
                 if w > 0 && h > 0 {
-                    self.set_viewport_logical_size(w as f32, h as f32);
+                    self.set_viewport_logical_size(
+                        w as f32 * self.coord_scale,
+                        h as f32 * self.coord_scale,
+                    );
                 }
             }
             WindowEvent::MouseLeave => {
@@ -498,6 +540,7 @@ impl SdlInputMapper {
         egui_wants_pointer: bool,
         out: &mut Vec<CanvasInputEvent>,
     ) {
+        let (x, y) = (x * self.coord_scale, y * self.coord_scale);
         self.pen_in_proximity = true;
         self.pen_down_eraser = eraser;
         self.touches.clear();
@@ -557,6 +600,7 @@ impl SdlInputMapper {
         active_tool: ActiveTool,
         out: &mut Vec<CanvasInputEvent>,
     ) {
+        let (x, y) = (x * self.coord_scale, y * self.coord_scale);
         self.pen_in_proximity = true;
         self.last_pointer_pos = ScreenPoint::new(f64::from(x), f64::from(y));
 
@@ -620,6 +664,7 @@ impl SdlInputMapper {
         active_tool: ActiveTool,
         out: &mut Vec<CanvasInputEvent>,
     ) {
+        let (x, y) = (x * self.coord_scale, y * self.coord_scale);
         self.last_pointer_pos = ScreenPoint::new(f64::from(x), f64::from(y));
 
         if self.pen_on_ui {
@@ -853,6 +898,8 @@ impl SdlInputMapper {
         if Self::is_synthetic_mouse(which) || self.pen_in_proximity {
             return;
         }
+        let (x, y) = (x * self.coord_scale, y * self.coord_scale);
+        let (xrel, yrel) = (xrel * self.coord_scale, yrel * self.coord_scale);
         self.last_pointer_pos = ScreenPoint::new(f64::from(x), f64::from(y));
 
         if self.mouse_panning {
@@ -897,6 +944,7 @@ impl SdlInputMapper {
         if Self::is_synthetic_mouse(which) || self.pen_in_proximity {
             return;
         }
+        let (x, y) = (x * self.coord_scale, y * self.coord_scale);
 
         self.last_pointer_pos = ScreenPoint::new(f64::from(x), f64::from(y));
         if let Some(egui_btn) = map_mouse_button(btn) {
@@ -949,6 +997,7 @@ impl SdlInputMapper {
         if Self::is_synthetic_mouse(which) || self.pen_in_proximity {
             return;
         }
+        let (x, y) = (x * self.coord_scale, y * self.coord_scale);
 
         self.last_pointer_pos = ScreenPoint::new(f64::from(x), f64::from(y));
         if let Some(egui_btn) = map_mouse_button(btn) {
@@ -993,6 +1042,7 @@ impl SdlInputMapper {
         if Self::is_synthetic_mouse(which) {
             return;
         }
+        let (mouse_x, mouse_y) = (mouse_x * self.coord_scale, mouse_y * self.coord_scale);
 
         let sign = if direction == MouseWheelDirection::Flipped {
             -1.0

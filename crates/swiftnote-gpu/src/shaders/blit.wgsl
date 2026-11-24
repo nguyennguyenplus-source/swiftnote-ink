@@ -1,6 +1,8 @@
 struct BlitUniforms {
-    dst_rect_ndc: vec4<f32>, // min_x, min_y, max_x, max_y in NDC [-1..1] (y down -> inverted in vs)
+    dst_rect_ndc: vec4<f32>, // min_x, min_y, max_x, max_y in NDC [-1..1]
     tint: vec4<f32>,         // rgba multiplier (use alpha for single-pass highlighter opacity)
+    src_uv_rect: vec4<f32>,  // min_u, min_v, max_u, max_v in source texture UV space
+    _pad: vec4<f32>,
 }
 
 @group(0) @binding(0)
@@ -33,7 +35,10 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> VsOut {
 
     var out: VsOut;
     out.pos = vec4<f32>(ndc_x, ndc_y, 0.0, 1.0);
-    out.uv = uv;
+    out.uv = vec2<f32>(
+        mix(u.src_uv_rect.x, u.src_uv_rect.z, uv.x),
+        mix(u.src_uv_rect.y, u.src_uv_rect.w, uv.y),
+    );
     return out;
 }
 

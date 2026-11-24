@@ -155,6 +155,7 @@ pub struct AppController {
     dirty_since: Option<Instant>,
     last_saved_at: Option<Instant>,
     centered_initial_viewport: bool,
+    last_logical_w: f64,
 }
 
 impl AppController {
@@ -227,6 +228,7 @@ impl AppController {
             dirty_since: None,
             last_saved_at: None,
             centered_initial_viewport: false,
+            last_logical_w: 1280.0,
         };
 
         if let Some(ref mut lib) = controller.library {
@@ -244,17 +246,27 @@ impl AppController {
         controller
     }
 
+    pub fn update_viewport_logical_width(&mut self, logical_w: f64) {
+        if logical_w.is_finite() && logical_w > 0.0 {
+            self.last_logical_w = logical_w;
+        }
+    }
+
     /// Ensures initial viewport horizontally centers page 1 cleanly on first window layout.
     pub fn ensure_initial_viewport_centered(
         &mut self,
         viewport_px: (u32, u32),
         display_scale: f32,
     ) {
-        if self.centered_initial_viewport || viewport_px.0 == 0 || viewport_px.1 == 0 {
+        if viewport_px.0 == 0 || viewport_px.1 == 0 {
             return;
         }
         let scale = f64::from(display_scale.max(1.0));
         let logical_w = f64::from(viewport_px.0) / scale;
+        self.last_logical_w = logical_w;
+        if self.centered_initial_viewport {
+            return;
+        }
         self.viewport.pan_x = logical_w * 0.5;
         self.viewport.pan_y = 64.0;
         self.centered_initial_viewport = true;
@@ -575,6 +587,9 @@ impl AppController {
                     return;
                 }
                 if let Ok((idx, page)) = self.doc.delete_page(page_id) {
+                    if self.selected_image.is_some_and(|(p, _)| p == page_id) {
+                        self.selected_image = None;
+                    }
                     self.undo_stack
                         .push(UndoCommand::DeletePage { index: idx, page });
                     if let Some(r) = renderer.as_deref_mut() {
@@ -1511,6 +1526,7 @@ impl AppController {
         self.dirty_since = None;
         self.last_saved_at = Some(Instant::now());
         self.viewport.zoom = 1.0;
+        self.viewport.pan_x = self.last_logical_w * 0.5;
         self.viewport.pan_y = 64.0;
         if let Some(r) = renderer {
             r.clear_active_stroke();
@@ -1751,5 +1767,33 @@ mod tests {
         assert!((center_y - page.height_pt * 0.5).abs() < 1e-6);
         assert_eq!(ctrl.selected_image, Some((page.id, placement.id)));
         assert_eq!(ctrl.tool_state.active_tool, ActiveTool::Select);
+    }
+
+    #[test]
+    fn delete_page_clears_selected_image_and_new_note_recenters_viewport() {
+        let mut ctrl = AppController::new_with_library(None);
+        ctrl.ensure_initial_viewport_centered((1600, 900), 1.0);
+        assert!((ctrl.viewport.pan_x - 800.0).abs() < 1e-6);
+
+        ctrl.apply_actions(vec![UiAction::AddPage], (1600, 900), 1.0, None);
+        assert_eq!(ctrl.doc.pages.len(), 2);
+        let page2_id = ctrl.doc.pages[1].id;
+
+        let rgba = vec![255u8; 4 * 4 * 4];
+        let res = ctrl.paste_rgba_image(4, 4, &rgba, (1600, 900), 1.0, None);
+        assert!(res.is_ok());
+        let Ok(placement) = res else {
+            return;
+        };
+        assert_eq!(ctrl.selected_image, Some((page2_id, placement.id)));
+
+        ctrl.apply_actions(vec![UiAction::DeletePage(page2_id)], (1600, 900), 1.0, None);
+        assert_eq!(ctrl.selected_image, None);
+
+        ctrl.viewport.pan_x = 123.0;
+        ctrl.viewport.zoom = 2.0;
+        ctrl.apply_actions(vec![UiAction::NewNote], (1600, 900), 1.0, None);
+        assert!((ctrl.viewport.zoom - 1.0).abs() < 1e-6);
+        assert!((ctrl.viewport.pan_x - 800.0).abs() < 1e-6);
     }
 }

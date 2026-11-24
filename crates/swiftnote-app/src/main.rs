@@ -9,14 +9,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
-use egui::{OutputCommand, RawInput, ViewportId, ViewportInfo};
+use egui::{Order, OutputCommand, RawInput, ViewportId, ViewportInfo};
 use sdl3::event::{DisplayEvent, Event as SdlEvent, WindowEvent};
 use sdl3::rect::Rect as SdlRect;
 use sdl3::video::{SystemTheme, Window};
 use sdl3::VideoSubsystem;
 use swiftnote_core::NoteLibrary;
 use swiftnote_gpu::{default_wgpu_backends, UnifiedRenderer};
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 use crate::controller::AppController;
@@ -29,6 +29,36 @@ use crate::theme::{apply_matte_theme, resolve_theme, MattePalette};
 struct WindowSurface {
     surface: wgpu::Surface<'static>,
     window: Window,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct WindowMetrics {
+    viewport_px: (u32, u32),
+    display_scale: f32,
+    coord_scale: f32,
+    logical_w: f32,
+    logical_h: f32,
+}
+
+fn read_window_metrics(window: &Window) -> WindowMetrics {
+    let viewport_px = window.size_in_pixels();
+    let sdl_win_size = window.size();
+    let display_scale = window.display_scale().clamp(1.0, 4.0);
+    let pixel_density = if sdl_win_size.0 > 0 && viewport_px.0 > 0 {
+        (viewport_px.0 as f32 / sdl_win_size.0 as f32).clamp(0.5, 4.0)
+    } else {
+        1.0
+    };
+    let coord_scale = (pixel_density / display_scale).clamp(0.25, 4.0);
+    let logical_w = (viewport_px.0.max(1) as f32 / display_scale).max(1.0);
+    let logical_h = (viewport_px.1.max(1) as f32 / display_scale).max(1.0);
+    WindowMetrics {
+        viewport_px,
+        display_scale,
+        coord_scale,
+        logical_w,
+        logical_h,
+    }
 }
 
 fn main() {
@@ -72,8 +102,8 @@ fn run_desktop_app() -> Result<()> {
     // `wgpu::Surface` is dropped before `sdl3::video::Window` goes out of scope.
     #[allow(unsafe_code)]
     let surface = unsafe {
-        let target = wgpu::SurfaceTargetUnsafe::from_window(&window)
-            .map_err(|e| anyhow!("Failed extracting native window handle: {e}"))?;
+        let target = wgpu::SurfaceTargetUnsafe::from_display_and_window(&window, &window)
+            .map_err(|e| anyhow!("Failed extracting native window/display handles: {e}"))?;
         instance.create_surface_unsafe(target)
     }
     .context("Failed creating wgpu surface for window")?;
@@ -116,25 +146,32 @@ fn run_desktop_app() -> Result<()> {
         .or_else(|| caps.alpha_modes.first().copied())
         .unwrap_or(wgpu::CompositeAlphaMode::Auto);
 
-    let mut viewport_px = ws.window.size_in_pixels();
-    let mut logical_size = ws.window.size();
-    let mut display_scale =
-        effective_display_scale(viewport_px, logical_size, ws.window.display_scale());
-
+    let mut metrics = read_window_metrics(&ws.window);
     let mut surface_config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         format: surface_format,
         color_space: wgpu::SurfaceColorSpace::Auto,
-        width: viewport_px.0.max(1),
-        height: viewport_px.1.max(1),
+        width: metrics.viewport_px.0.max(1),
+        height: metrics.viewport_px.1.max(1),
         present_mode: wgpu::PresentMode::AutoVsync,
         desired_maximum_frame_latency: 2,
         alpha_mode,
         view_formats: vec![],
     };
-    if viewport_px.0 > 0 && viewport_px.1 > 0 {
+    if metrics.viewport_px.0 > 0 && metrics.viewport_px.1 > 0 {
         ws.surface.configure(&device, &surface_config);
     }
+
+    let adapter_info = adapter.get_info();
+    info!(
+        adapter = %adapter_info.name,
+        backend = ?adapter_info.backend,
+        ?surface_format,
+        viewport_px = ?metrics.viewport_px,
+        display_scale = metrics.display_scale,
+        coord_scale = metrics.coord_scale,
+        "Swift Note GPU & window initialized"
+    );
 
     let mut renderer = UnifiedRenderer::new(
         Arc::clone(&device),
@@ -158,12 +195,12 @@ fn run_desktop_app() -> Result<()> {
     };
     let mut controller = AppController::new_with_library(library);
     let mut input_mapper = SdlInputMapper::new();
-    input_mapper
-        .set_viewport_logical_size(logical_size.0.max(1) as f32, logical_size.1.max(1) as f32);
-    controller.ensure_initial_viewport_centered(viewport_px, display_scale);
+    input_mapper.set_viewport_logical_size(metrics.logical_w, metrics.logical_h);
+    input_mapper.set_coord_scale(metrics.coord_scale);
+    controller.ensure_initial_viewport_centered(metrics.viewport_px, metrics.display_scale);
 
     let egui_ctx = egui::Context::default();
-    let mut icons = IconRegistry::new(&egui_ctx, display_scale);
+    let mut icons = IconRegistry::new(&egui_ctx, metrics.display_scale);
 
     let mut system_dark = detect_system_dark();
     let mut resolved_theme = resolve_theme(controller.settings.ui_theme, system_dark);
@@ -185,9 +222,7 @@ fn run_desktop_app() -> Result<()> {
                     &ws,
                     &device,
                     &mut surface_config,
-                    &mut viewport_px,
-                    &mut logical_size,
-                    &mut display_scale,
+                    &mut metrics,
                     &mut icons,
                     &egui_ctx,
                     &mut input_mapper,
@@ -208,9 +243,7 @@ fn run_desktop_app() -> Result<()> {
                 &ws,
                 &device,
                 &mut surface_config,
-                &mut viewport_px,
-                &mut logical_size,
-                &mut display_scale,
+                &mut metrics,
                 &mut icons,
                 &egui_ctx,
                 &mut input_mapper,
@@ -244,7 +277,7 @@ fn run_desktop_app() -> Result<()> {
             needs_redraw = true;
         }
 
-        if !needs_redraw || viewport_px.0 == 0 || viewport_px.1 == 0 {
+        if !needs_redraw || metrics.viewport_px.0 == 0 || metrics.viewport_px.1 == 0 {
             continue;
         }
         needs_redraw = false;
@@ -255,8 +288,7 @@ fn run_desktop_app() -> Result<()> {
             device: &device,
             queue: &queue,
             surface_config: &mut surface_config,
-            viewport_px,
-            display_scale,
+            metrics,
             start_instant,
             window_focused,
             system_dark,
@@ -295,18 +327,6 @@ fn detect_system_dark() -> Option<bool> {
     }
 }
 
-fn effective_display_scale(
-    viewport_px: (u32, u32),
-    logical_size: (u32, u32),
-    window_display_scale: f32,
-) -> f32 {
-    if logical_size.0 > 0 && viewport_px.0 > 0 {
-        (viewport_px.0 as f32 / logical_size.0 as f32).clamp(1.0, 4.0)
-    } else {
-        window_display_scale.clamp(1.0, 4.0)
-    }
-}
-
 fn compute_wait_timeout_ms(
     controller: &AppController,
     egui_repaint_deadline: Option<Instant>,
@@ -341,9 +361,7 @@ fn handle_event(
     ws: &WindowSurface,
     device: &wgpu::Device,
     surface_config: &mut wgpu::SurfaceConfiguration,
-    viewport_px: &mut (u32, u32),
-    logical_size: &mut (u32, u32),
-    display_scale: &mut f32,
+    metrics: &mut WindowMetrics,
     icons: &mut IconRegistry,
     egui_ctx: &egui::Context,
     input_mapper: &mut SdlInputMapper,
@@ -375,9 +393,7 @@ fn handle_event(
                     ws,
                     device,
                     surface_config,
-                    viewport_px,
-                    logical_size,
-                    display_scale,
+                    metrics,
                     icons,
                     egui_ctx,
                     input_mapper,
@@ -403,9 +419,7 @@ fn handle_event(
                 ws,
                 device,
                 surface_config,
-                viewport_px,
-                logical_size,
-                display_scale,
+                metrics,
                 icons,
                 egui_ctx,
                 input_mapper,
@@ -416,18 +430,32 @@ fn handle_event(
         _ => {}
     }
 
+    let direct_ui_hit = input_mapper
+        .sdl_pointer_pos_logical(event)
+        .is_some_and(|pos| {
+            egui_ctx
+                .layer_id_at(pos)
+                .is_some_and(|layer| layer.order != Order::Background)
+        });
+    let egui_wants_pointer = egui_ctx.egui_wants_pointer_input() || direct_ui_hit;
+
     let canvas_events = input_mapper.feed_sdl_event(
         event,
         &controller.settings,
         controller.tool_state.active_tool,
-        egui_ctx.egui_wants_pointer_input(),
+        egui_wants_pointer,
         egui_ctx.egui_wants_keyboard_input(),
     );
-    if !canvas_events.is_empty() {
+    if !canvas_events.is_empty() || input_mapper.has_pending_egui_events() {
         outcome.redraw = true;
     }
     for canvas_ev in canvas_events {
-        if controller.handle_canvas_event(canvas_ev, *viewport_px, *display_scale, Some(renderer)) {
+        if controller.handle_canvas_event(
+            canvas_ev,
+            metrics.viewport_px,
+            metrics.display_scale,
+            Some(renderer),
+        ) {
             outcome.redraw = true;
         }
     }
@@ -440,32 +468,25 @@ fn sync_window_metrics(
     ws: &WindowSurface,
     device: &wgpu::Device,
     surface_config: &mut wgpu::SurfaceConfiguration,
-    viewport_px: &mut (u32, u32),
-    logical_size: &mut (u32, u32),
-    display_scale: &mut f32,
+    metrics: &mut WindowMetrics,
     icons: &mut IconRegistry,
     egui_ctx: &egui::Context,
     input_mapper: &mut SdlInputMapper,
     controller: &mut AppController,
 ) {
-    let next_px = ws.window.size_in_pixels();
-    let next_logical = ws.window.size();
-    let next_scale = effective_display_scale(next_px, next_logical, ws.window.display_scale());
+    let next = read_window_metrics(&ws.window);
+    let px_changed = next.viewport_px != metrics.viewport_px;
+    *metrics = next;
 
-    let px_changed = next_px != *viewport_px;
-    *viewport_px = next_px;
-    *logical_size = next_logical;
-    *display_scale = next_scale;
+    input_mapper.set_viewport_logical_size(next.logical_w, next.logical_h);
+    input_mapper.set_coord_scale(next.coord_scale);
+    controller.update_viewport_logical_width(f64::from(next.logical_w));
+    controller.ensure_initial_viewport_centered(next.viewport_px, next.display_scale);
+    icons.ensure_scale(egui_ctx, next.display_scale);
 
-    if next_logical.0 > 0 && next_logical.1 > 0 {
-        input_mapper.set_viewport_logical_size(next_logical.0 as f32, next_logical.1 as f32);
-    }
-    controller.ensure_initial_viewport_centered(next_px, next_scale);
-    icons.ensure_scale(egui_ctx, next_scale);
-
-    if px_changed && next_px.0 > 0 && next_px.1 > 0 {
-        surface_config.width = next_px.0;
-        surface_config.height = next_px.1;
+    if px_changed && next.viewport_px.0 > 0 && next.viewport_px.1 > 0 {
+        surface_config.width = next.viewport_px.0;
+        surface_config.height = next.viewport_px.1;
         ws.surface.configure(device, surface_config);
     }
 }
@@ -476,8 +497,7 @@ struct FrameRenderContext<'a> {
     device: &'a wgpu::Device,
     queue: &'a wgpu::Queue,
     surface_config: &'a mut wgpu::SurfaceConfiguration,
-    viewport_px: (u32, u32),
-    display_scale: f32,
+    metrics: WindowMetrics,
     start_instant: Instant,
     window_focused: bool,
     system_dark: Option<bool>,
@@ -500,15 +520,13 @@ fn render_frame(
     egui_renderer: &mut egui_wgpu::Renderer,
     ime_active: &mut bool,
 ) -> FrameOutcome {
-    let scale = ctx.display_scale.max(1.0);
-    let logical_w = ctx.viewport_px.0 as f32 / scale;
-    let logical_h = ctx.viewport_px.1 as f32 / scale;
+    let m = ctx.metrics;
 
     let mut raw_input = RawInput {
         viewport_id: ViewportId::ROOT,
         screen_rect: Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
-            egui::vec2(logical_w, logical_h),
+            egui::vec2(m.logical_w, m.logical_h),
         )),
         time: Some(ctx.start_instant.elapsed().as_secs_f64()),
         events: input_mapper.take_egui_events(),
@@ -525,7 +543,7 @@ fn render_frame(
     raw_input.viewports.insert(
         ViewportId::ROOT,
         ViewportInfo {
-            native_pixels_per_point: Some(scale),
+            native_pixels_per_point: Some(m.display_scale),
             focused: Some(ctx.window_focused),
             ..ViewportInfo::default()
         },
@@ -538,8 +556,8 @@ fn render_frame(
             controller,
             icons,
             ctx.palette,
-            ctx.viewport_px,
-            ctx.display_scale,
+            m.viewport_px,
+            m.display_scale,
         );
     });
 
@@ -547,17 +565,18 @@ fn render_frame(
         ctx.video,
         &ctx.ws.window,
         full_output.platform_output.ime,
+        m.coord_scale,
         ime_active,
     );
     handle_platform_commands(&full_output.platform_output.commands);
 
     let actions_changed = controller.apply_actions(
         queued_actions,
-        ctx.viewport_px,
-        ctx.display_scale,
+        m.viewport_px,
+        m.display_scale,
         Some(renderer),
     );
-    controller.request_visible_pdf_tiles(renderer, ctx.viewport_px, ctx.display_scale);
+    controller.request_visible_pdf_tiles(renderer, m.viewport_px, m.display_scale);
 
     for (tex_id, deltas) in &full_output.textures_delta.set {
         for delta in deltas {
@@ -574,8 +593,8 @@ fn render_frame(
             Some(frame)
         }
         wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-            ctx.surface_config.width = ctx.viewport_px.0;
-            ctx.surface_config.height = ctx.viewport_px.1;
+            ctx.surface_config.width = m.viewport_px.0;
+            ctx.surface_config.height = m.viewport_px.1;
             ctx.ws.surface.configure(ctx.device, ctx.surface_config);
             needs_retry_frame = true;
             None
@@ -592,8 +611,8 @@ fn render_frame(
 
         renderer.render_canvas(
             &frame_view,
-            ctx.viewport_px,
-            ctx.display_scale,
+            m.viewport_px,
+            m.display_scale,
             controller.viewport,
             &controller.doc,
             &controller.settings,
@@ -604,7 +623,7 @@ fn render_frame(
 
         let paint_jobs = egui_ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
         let screen_desc = egui_wgpu::ScreenDescriptor {
-            size_in_pixels: [ctx.viewport_px.0, ctx.viewport_px.1],
+            size_in_pixels: [m.viewport_px.0, m.viewport_px.1],
             pixels_per_point: full_output.pixels_per_point,
         };
         let mut encoder = ctx
@@ -651,7 +670,7 @@ fn render_frame(
         egui_renderer.free_texture(tex_id);
     }
 
-    if reconfigure_after_present && ctx.viewport_px.0 > 0 && ctx.viewport_px.1 > 0 {
+    if reconfigure_after_present && m.viewport_px.0 > 0 && m.viewport_px.1 > 0 {
         ctx.ws.surface.configure(ctx.device, ctx.surface_config);
     }
 
@@ -681,19 +700,21 @@ fn sync_ime_output(
     video: &VideoSubsystem,
     window: &Window,
     ime: Option<egui::output::IMEOutput>,
+    coord_scale: f32,
     ime_active: &mut bool,
 ) {
     let text_input = video.text_input();
+    let inv = 1.0 / coord_scale.clamp(0.25, 4.0);
     match ime {
         Some(info) => {
             if !*ime_active {
                 text_input.start(window);
                 *ime_active = true;
             }
-            let x = info.cursor_rect.min.x.round().max(0.0) as i32;
-            let y = info.cursor_rect.min.y.round().max(0.0) as i32;
-            let w = (info.cursor_rect.width().ceil().max(1.0)) as u32;
-            let h = (info.cursor_rect.height().ceil().max(16.0)) as u32;
+            let x = (info.cursor_rect.min.x * inv).round().max(0.0) as i32;
+            let y = (info.cursor_rect.min.y * inv).round().max(0.0) as i32;
+            let w = (info.cursor_rect.width() * inv).ceil().max(1.0) as u32;
+            let h = (info.cursor_rect.height() * inv).ceil().max(16.0) as u32;
             text_input.set_rect(window, SdlRect::new(x, y, w, h), 0);
         }
         None if *ime_active => {

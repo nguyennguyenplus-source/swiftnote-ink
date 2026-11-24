@@ -33,12 +33,27 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> VsOut {
     return out;
 }
 
+fn srgb_to_linear_chan(c: f32) -> f32 {
+    if (c <= 0.04045) {
+        return c / 12.92;
+    }
+    return pow((c + 0.055) / 1.055, 2.4);
+}
+
+fn srgb_to_linear(c: vec3<f32>) -> vec3<f32> {
+    return vec3<f32>(
+        srgb_to_linear_chan(c.r),
+        srgb_to_linear_chan(c.g),
+        srgb_to_linear_chan(c.b),
+    );
+}
+
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let is_black = u.params.z > 0.5;
-    let bg = select(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.086, 0.090, 0.106), is_black);
-    let line_col = select(vec3<f32>(0.835, 0.855, 0.890), vec3<f32>(0.180, 0.196, 0.231), is_black);
-    let accent_col = select(vec3<f32>(0.74, 0.81, 0.90), vec3<f32>(0.24, 0.27, 0.34), is_black);
+    let bg = srgb_to_linear(select(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.086, 0.090, 0.106), is_black));
+    let line_col = srgb_to_linear(select(vec3<f32>(0.835, 0.855, 0.890), vec3<f32>(0.180, 0.196, 0.231), is_black));
+    let accent_col = srgb_to_linear(select(vec3<f32>(0.74, 0.81, 0.90), vec3<f32>(0.24, 0.27, 0.34), is_black));
 
     let tid = i32(u.params.x + 0.5);
     let spacing = max(u.params.y, 4.0);

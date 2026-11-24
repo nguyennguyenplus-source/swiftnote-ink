@@ -1,8 +1,8 @@
 use egui::{
     color_picker::{color_edit_button_srgba, Alpha},
     pos2, vec2, Align, Align2, Button, Color32, CornerRadius, Frame, Id, LayerId, Layout, Margin,
-    Order, Painter, Pos2, Rect, ScrollArea, Sense, Shadow, Slider, Stroke, StrokeKind, TextEdit,
-    Ui, Vec2, Window,
+    Order, Painter, Pos2, Rect, RichText, ScrollArea, Sense, Shadow, Slider, Stroke, StrokeKind,
+    TextEdit, Ui, Vec2, Window,
 };
 use swiftnote_core::{
     ActiveTool, BrushKind, BrushStyle, CanvasPoint, Color as CoreColor, EraserMode, EraserSize,
@@ -44,7 +44,15 @@ pub fn build_ui(
     }
 
     if controller.pages_sidebar_open {
-        draw_pages_sidebar(root_ui, controller, icons, palette, &mut actions);
+        draw_pages_sidebar(
+            root_ui,
+            controller,
+            icons,
+            palette,
+            viewport_px,
+            display_scale,
+            &mut actions,
+        );
     }
 
     let canvas_rect = root_ui.available_rect_before_wrap();
@@ -450,8 +458,8 @@ fn draw_gallery_panel(
                         actions.push(UiAction::ToggleGallery);
                     }
                     let new_btn = Button::image_and_text(
-                        icons.image(IconId::Plus, 15.0, palette.surface),
-                        "New Note",
+                        icons.image(IconId::Plus, 15.0, Color32::WHITE),
+                        RichText::new("New Note").color(Color32::WHITE),
                     )
                     .fill(palette.accent)
                     .stroke(Stroke::NONE);
@@ -539,6 +547,8 @@ fn draw_pages_sidebar(
     controller: &AppController,
     icons: &IconRegistry,
     palette: MattePalette,
+    viewport_px: (u32, u32),
+    display_scale: f32,
     actions: &mut Vec<UiAction>,
 ) {
     let resp = egui::Panel::right("swiftnote_pages_sidebar")
@@ -555,8 +565,8 @@ fn draw_pages_sidebar(
                 ui.strong(format!("Pages ({})", controller.doc.pages.len()));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     let add_btn = Button::image_and_text(
-                        icons.image(IconId::Plus, 14.0, palette.surface),
-                        "Add",
+                        icons.image(IconId::Plus, 14.0, Color32::WHITE),
+                        RichText::new("Add").color(Color32::WHITE),
                     )
                     .fill(palette.accent)
                     .stroke(Stroke::NONE);
@@ -571,6 +581,7 @@ fn draw_pages_sidebar(
             ui.add_space(6.0);
 
             let can_delete = controller.doc.pages.len() > 1;
+            let active_idx = controller.active_page_index(viewport_px, display_scale);
             ScrollArea::vertical()
                 .id_salt("pages_list_scroll")
                 .show(ui, |ui| {
@@ -586,9 +597,20 @@ fn draw_pages_sidebar(
                             PageBackground::CustomImage { .. } => "Image Page".to_owned(),
                         };
 
+                        let is_active = idx == active_idx;
+                        let card_fill = if is_active {
+                            palette.accent_soft
+                        } else {
+                            palette.surface_subtle
+                        };
+                        let card_stroke = if is_active {
+                            Stroke::new(1.5, palette.accent)
+                        } else {
+                            Stroke::new(1.0, palette.border)
+                        };
                         Frame::NONE
-                            .fill(palette.surface_subtle)
-                            .stroke(Stroke::new(1.0, palette.border))
+                            .fill(card_fill)
+                            .stroke(card_stroke)
                             .corner_radius(CornerRadius::same(5))
                             .inner_margin(Margin::same(8))
                             .show(ui, |ui| {
@@ -1245,7 +1267,7 @@ fn draw_pdf_password_modal(
             ui.horizontal(|ui| {
                 if ui
                     .add(
-                        Button::new("Unlock")
+                        Button::new(RichText::new("Unlock").color(Color32::WHITE))
                             .fill(palette.accent)
                             .stroke(Stroke::NONE),
                     )

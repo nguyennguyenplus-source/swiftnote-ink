@@ -311,7 +311,7 @@ fn run_worker_loop(
                     continue;
                 };
                 match render_tile_bytes(pdfium_ref, stored, &req) {
-                    Ok(rgba) => {
+                    Ok((width_px, height_px, rgba)) => {
                         if req.generation >= active_gen.load(Ordering::Acquire) {
                             let _ = res_tx.try_send(PdfTileResult {
                                 generation: req.generation,
@@ -321,8 +321,8 @@ fn run_worker_loop(
                                 tile_y: req.tile_y,
                                 tile_cols: req.tile_cols,
                                 tile_rows: req.tile_rows,
-                                width_px: req.tile_width_px,
-                                height_px: req.tile_height_px,
+                                width_px,
+                                height_px,
                                 rgba,
                             });
                         } else {
@@ -363,13 +363,7 @@ fn open_pdf_summary(
             })
         }
         Err(PdfiumError::PdfiumLibraryInternalError(PdfiumInternalError::PasswordError)) => {
-            Ok(PdfOpenSummary {
-                asset_id,
-                page_count: 0,
-                page_sizes_pt: Vec::new(),
-                encrypted: true,
-                locked: true,
-            })
+            Err(GpuError::PdfPasswordRequired)
         }
         Err(err) => Err(GpuError::PdfError(err.to_string())),
     }
@@ -379,7 +373,7 @@ fn render_tile_bytes(
     pdfium: &Pdfium,
     stored: &StoredPdf,
     req: &PdfTileRequest,
-) -> Result<Vec<u8>, GpuError> {
+) -> Result<(u32, u32, Vec<u8>), GpuError> {
     let doc = pdfium
         .load_pdf_from_byte_slice(&stored.raw_bytes, stored.password.as_deref())
         .map_err(|e| GpuError::PdfError(e.to_string()))?;
@@ -420,7 +414,9 @@ fn render_tile_bytes(
     let dyn_img = bitmap
         .as_image()
         .map_err(|e| GpuError::PdfError(e.to_string()))?;
-    Ok(dyn_img.to_rgba8().into_raw())
+    let rgba_img = dyn_img.to_rgba8();
+    let (w, h) = rgba_img.dimensions();
+    Ok((w, h, rgba_img.into_raw()))
 }
 
 #[cfg(test)]

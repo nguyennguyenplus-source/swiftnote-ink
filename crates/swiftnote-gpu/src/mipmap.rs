@@ -7,6 +7,21 @@ use crate::error::GpuError;
 pub struct BlitUniforms {
     pub dst_rect_ndc: [f32; 4],
     pub tint: [f32; 4],
+    pub src_uv_rect: [f32; 4],
+    pub pad: [f32; 4],
+}
+
+impl BlitUniforms {
+    pub const FULL_UV: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
+
+    pub const fn new(dst_rect_ndc: [f32; 4], tint: [f32; 4], src_uv_rect: [f32; 4]) -> Self {
+        Self {
+            dst_rect_ndc,
+            tint,
+            src_uv_rect,
+            pad: [0.0; 4],
+        }
+    }
 }
 
 /// Computes full mipmap chain length down to `1x1`.
@@ -123,10 +138,11 @@ pub fn upload_mipmapped_rgba_texture(
     if mip_level_count > 1 {
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("swiftnote_mipmap_uniforms"),
-            contents: bytemuck::bytes_of(&BlitUniforms {
-                dst_rect_ndc: [-1.0, 1.0, 1.0, -1.0],
-                tint: [1.0, 1.0, 1.0, 1.0],
-            }),
+            contents: bytemuck::bytes_of(&BlitUniforms::new(
+                [-1.0, 1.0, 1.0, -1.0],
+                [1.0, 1.0, 1.0, 1.0],
+                BlitUniforms::FULL_UV,
+            )),
             usage: wgpu::BufferUsages::UNIFORM,
         });
 
@@ -180,7 +196,7 @@ pub fn upload_mipmapped_rgba_texture(
                 multiview_mask: None,
             });
             pass.set_pipeline(mipmap_pipeline);
-            pass.set_bind_group(0, &bind_group, &[]);
+            pass.set_bind_group(0, &bind_group, &[0]);
             pass.draw(0..6, 0..1);
         }
 
