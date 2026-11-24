@@ -159,7 +159,7 @@ fn draw_top_bar(
                     palette,
                     IconId::Gallery,
                     controller.gallery_open,
-                    "Notes Gallery (Ctrl+G)",
+                    "Notes Gallery (G)",
                 )
                 .clicked()
                 {
@@ -294,7 +294,7 @@ fn draw_top_bar(
                         palette,
                         IconId::Pages,
                         controller.pages_sidebar_open,
-                        "Pages Sidebar (Ctrl+B)",
+                        "Pages Sidebar (Tab)",
                     )
                     .clicked()
                     {
