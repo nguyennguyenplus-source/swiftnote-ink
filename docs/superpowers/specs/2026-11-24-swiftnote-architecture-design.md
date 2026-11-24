@@ -1,7 +1,7 @@
 # Swift Note (`swiftnote-ink`) v2 — Architecture & Product Design Specification
 
 - **Date:** 2026-11-24
-- **Status:** Draft — Pending Builder Check & User Approval
+- **Status:** Approved (2026-11-24)
 - **Repository:** `https://github.com/nguyennguyenplus-source/swiftnote-ink`
 - **License:** `GPL-3.0-or-later` *(Design Call — preserves Xournal++-compatible open-source licensing)*
 - **Target Platforms:** Linux (Wayland `zwp_tablet_v2` & X11 XInput2) and Windows 10/11 (Windows Ink)
@@ -255,20 +255,9 @@ The following implementation-adjacent product calls are explicitly recorded so t
 6. **Encrypted PDF Security:** Store original encrypted PDF bytes in `assets/`, never write passwords to disk, keep session unlock strictly in RAM, and show a lock placeholder in Gallery thumbnails until unlocked `(Design Call)`.
 7. **`TextBox` Granularity & Fonts:** Uniform box-level `TextStyle` (Font Size, Bold, Italic, Color — matching Scrble Ink `v6.8.6.0`'s `CanvasTextBox`) using bundled Vietnamese-complete sans-serif + monospace fonts `(Design Call)`.
 8. **Clean-Slate `swNK` PNG Schema:** `swNK` v2 single-page editable PNG export/import with zero backward compatibility with the discarded `Scrble Ink Remake` `v0.2.x` format `(Design Call)`.
-
-### 6.1 Open Product Choices Pending User Confirmation (with Proposed Defaults)
-
-Three product-behavior questions surfaced during Builder Check require explicit user confirmation (or approval of the proposed default) before `writing-plans`:
-
-1. **Managed Note Library (Scrble Ink style) vs. Standalone Files on Disk (Xournal++ style) + M1 Gallery:**
-   - **Proposed Default:** Managed notebook workspace (`~/.local/share/swiftnote/library/` on Linux, `%APPDATA%\SwiftNote\library\` on Windows) where new notes immediately get a `NoteId` and autosave seamlessly into folders (M1 `[≡ Gallery]` provides a clean Recent Notes list + New Note switcher until M3 builds the full `ProjectTreeControl`), while `Open/Import/Save Copy` also supports standalone `.swnote` files anywhere on disk.
-   - **Alternative:** Pure document-centric editor (`Untitled` requires `Save As` path, `[≡ Gallery]` is a recent-files browser).
-2. **Page Boundaries & `Vertical Spacer` (`OnePageSpacer` / `TwoPagesSpacer`) Overflow Semantics:**
-   - **Proposed Default:** Every stroke, shape, image, and text box belongs strictly to **one `Page`** (no cross-gap floating elements; drawing across a page boundary stays scoped to the starting page). `OnePageSpacer` shifts elements downward inside the current page and expands `Page.height_pt` if pushed past the bottom (except fixed PDF pages, which clamp or trigger overflow insertion); `TwoPagesSpacer` / cross-page spacer cascades overflowed elements down into subsequent pages and inserts a matching blank paper page if the next page is a fixed PDF sheet or end of document.
-   - **Alternative:** Strict fixed-size pages (`Page.height_pt` never grows; overflow either clips or immediately splits onto a new trailing page).
-3. **`Blackboard` Auto-Contrast Polarity & Theme Independence:**
-   - **Proposed Default:** `Light` vs. `Blackboard` paper is **per-page/per-note** and completely independent of Light/Dark app UI chrome. Switching a page to `Blackboard` (`#16171B`) adapts paper grid lines, switches highlighter blending (`Multiply` → `SrcOver`), flips default pen palette black ↔ chalk white, and **dynamically maps neutral black↔white strokes** when toggling polarity (and exports Blackboard pages dark as authored by default, with an optional "Light Paper for Printing" export toggle).
-   - **Alternative:** Literal RGB storage only (existing black ink remains black if page background changes to Blackboard).
+9. **Managed Note Library `(User Approved)`:** Auto-persisted managed workspace (`~/.local/share/swiftnote/library/` on Linux, `%APPDATA%\SwiftNote\library\` on Windows) with `NoteId` identity, M1 `[≡ Gallery]` recent-notes switcher + New Note, plus standalone `.swnote` Import/Save Copy anywhere on disk.
+10. **Page Boundaries & Vertical Spacer `(User Approved)`:** Strict single-page element ownership; `OnePageSpacer` expands non-PDF `Page.height_pt` if shifted past bottom; `TwoPagesSpacer` / document spacer cascades elements into subsequent pages and inserts a blank paper page before fixed PDF sheets or at end of document.
+11. **Blackboard Auto-Contrast & Settings Toggle `(User Approved)`:** Per-page/note independent of UI Light/Dark chrome; adapts paper grid, switches highlighter blend (`Multiply` → `SrcOver`), swaps default pen black ↔ chalk white, and dynamically inverts monochrome black ↔ white strokes controlled by an explicit **Auto-Invert Monochrome Ink on Blackboard** toggle in Swift Note Settings (default: ON), plus optional light-paper export toggle for printing.
 
 ---
 
