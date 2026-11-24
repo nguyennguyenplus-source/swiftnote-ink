@@ -9,6 +9,7 @@ repository.workspace = true
 [dependencies]
 bytemuck = { workspace = true }
 image = { workspace = true }
+pdfium-render = { workspace = true }
 pollster = { workspace = true }
 swiftnote-core = { workspace = true }
 thiserror = { workspace = true }

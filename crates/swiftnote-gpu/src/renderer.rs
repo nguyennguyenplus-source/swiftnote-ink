@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::num::NonZeroU64;
 use std::sync::Arc;
 
@@ -13,7 +13,10 @@ use crate::error::GpuError;
 use crate::mipmap::{
     create_mipmap_pipeline, upload_mipmapped_rgba_texture, BlitUniforms, MipmapUploadCtx,
 };
+use crate::pdf_worker::{build_pdf_tile_requests, PdfTileResult, PdfWorker, MAX_PDF_TILE_PX};
 use crate::tile_cache::{visible_tile_keys, GpuTileCache, TileKey, TILE_SIZE_PX};
+
+const PDF_VRAM_BUDGET_BYTES: usize = 128 * 1024 * 1024;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -71,6 +74,7 @@ struct ImageGpuTex {
     _texture: wgpu::Texture,
     view: wgpu::TextureView,
     _mip_levels: u32,
+    byte_size: usize,
 }
 
 struct GpuTile {
@@ -196,6 +200,10 @@ pub struct UnifiedRenderer {
     tile_cache: GpuTileCache<GpuTile>,
     image_textures: HashMap<AssetId, ImageGpuTex>,
     pdf_textures: HashMap<PdfTileKey, ImageGpuTex>,
+    pdf_lru: VecDeque<PdfTileKey>,
+    pdf_vram_bytes: usize,
+    in_flight_pdf: HashSet<PdfTileKey>,
+    last_pdf_scale_milli: u32,
 
     tessellator: StrokeTessellator,
     tess_mesh: ContourMesh,
@@ -597,6 +605,10 @@ impl UnifiedRenderer {
             tile_cache: GpuTileCache::default(),
             image_textures: HashMap::new(),
             pdf_textures: HashMap::new(),
+            pdf_lru: VecDeque::new(),
+            pdf_vram_bytes: 0,
+            in_flight_pdf: HashSet::new(),
+            last_pdf_scale_milli: 0,
             tessellator: StrokeTessellator::new(),
             tess_mesh: ContourMesh::with_capacity(8192, 16384),
             vertex_scratch: Vec::with_capacity(8192),
@@ -679,18 +691,22 @@ impl UnifiedRenderer {
                 _texture: tex,
                 view,
                 _mip_levels: mips,
+                byte_size: (w as usize) * (h as usize) * 4,
             },
         );
         Ok(())
     }
 
-    pub fn upload_pdf_tile(
-        &mut self,
-        key: PdfTileKey,
-        width_px: u32,
-        height_px: u32,
-        rgba: &[u8],
-    ) -> Result<(), GpuError> {
+    pub fn upload_pdf_tile(&mut self, tile: PdfTileResult, doc: &Document) -> Result<(), GpuError> {
+        let key = PdfTileKey {
+            asset_id: tile.asset_id,
+            page_index: tile.page_index,
+            tile_x: tile.tile_x,
+            tile_y: tile.tile_y,
+            tile_cols: tile.tile_cols,
+            tile_rows: tile.tile_rows,
+        };
+        self.in_flight_pdf.remove(&key);
         let (tex, view, mips) = upload_mipmapped_rgba_texture(
             &MipmapUploadCtx {
                 device: &self.device,
@@ -700,20 +716,146 @@ impl UnifiedRenderer {
                 linear_sampler: &self.linear_sampler,
             },
             "swiftnote_pdf_tile",
-            width_px,
-            height_px,
-            rgba,
+            tile.width_px,
+            tile.height_px,
+            &tile.rgba,
         )?;
+        let byte_size = (tile.width_px as usize) * (tile.height_px as usize) * 4;
+        if let Some(old) = self.pdf_textures.remove(&key) {
+            self.pdf_vram_bytes = self.pdf_vram_bytes.saturating_sub(old.byte_size);
+        }
+        self.pdf_vram_bytes = self.pdf_vram_bytes.saturating_add(byte_size);
         self.pdf_textures.insert(
             key,
             ImageGpuTex {
                 _texture: tex,
                 view,
                 _mip_levels: mips,
+                byte_size,
             },
         );
-        self.tile_cache.invalidate_page(PageId(u64::MAX));
+        if let Some(pos) = self.pdf_lru.iter().position(|k| *k == key) {
+            self.pdf_lru.remove(pos);
+        }
+        self.pdf_lru.push_back(key);
+        while self.pdf_vram_bytes > PDF_VRAM_BUDGET_BYTES && self.pdf_textures.len() > 1 {
+            let Some(evict) = self.pdf_lru.pop_front() else {
+                break;
+            };
+            if evict == key {
+                self.pdf_lru.push_back(evict);
+                continue;
+            }
+            if let Some(old) = self.pdf_textures.remove(&evict) {
+                self.pdf_vram_bytes = self.pdf_vram_bytes.saturating_sub(old.byte_size);
+            }
+        }
+        for page in &doc.pages {
+            if let PageBackground::Pdf {
+                asset_id,
+                page_index,
+                ..
+            } = page.background
+            {
+                if asset_id == tile.asset_id.0 && page_index == tile.page_index {
+                    self.tile_cache.invalidate_page(page.id);
+                }
+            }
+        }
         Ok(())
+    }
+
+    pub fn request_visible_pdf_tiles(
+        &mut self,
+        doc: &Document,
+        viewport_px: (u32, u32),
+        display_scale: f32,
+        viewport: ViewportTransform,
+        worker: &PdfWorker,
+    ) {
+        let (vp_w, vp_h) = viewport_px;
+        if vp_w == 0 || vp_h == 0 {
+            return;
+        }
+        let scale_milli = TileKey::scale_milli_from(viewport.zoom, display_scale);
+        if self.last_pdf_scale_milli != scale_milli {
+            let delta = self.last_pdf_scale_milli.abs_diff(scale_milli);
+            if self.last_pdf_scale_milli == 0 || delta > 150 {
+                self.last_pdf_scale_milli = scale_milli;
+                self.in_flight_pdf.clear();
+                worker.advance_generation();
+            }
+        }
+        let logical_w = f64::from(vp_w) / f64::from(display_scale);
+        let logical_h = f64::from(vp_h) / f64::from(display_scale);
+        let tl = viewport.screen_to_canvas(swiftnote_core::ScreenPoint::new(0.0, 0.0));
+        let br = viewport.screen_to_canvas(swiftnote_core::ScreenPoint::new(logical_w, logical_h));
+        let vis_canvas = Rect::new(
+            tl.x.min(br.x),
+            tl.y.min(br.y),
+            tl.x.max(br.x),
+            tl.y.max(br.y),
+        );
+        let visible_ids: HashSet<PageId> = doc
+            .visible_pages(vis_canvas)
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+        if visible_ids.is_empty() {
+            return;
+        }
+        let mut target_indices = Vec::with_capacity(visible_ids.len() + 2);
+        for (i, page) in doc.pages.iter().enumerate() {
+            if visible_ids.contains(&page.id) {
+                if i > 0 {
+                    target_indices.push(i - 1);
+                }
+                target_indices.push(i);
+                if i + 1 < doc.pages.len() {
+                    target_indices.push(i + 1);
+                }
+            }
+        }
+        target_indices.sort_unstable();
+        target_indices.dedup();
+
+        let generation = worker.current_generation();
+        let scale_px_per_pt = viewport.zoom * f64::from(display_scale);
+        for idx in target_indices {
+            let page = &doc.pages[idx];
+            if let PageBackground::Pdf {
+                asset_id,
+                page_index,
+                locked_placeholder: false,
+            } = page.background
+            {
+                let aid = AssetId(asset_id);
+                let requests = build_pdf_tile_requests(
+                    generation,
+                    aid,
+                    page_index,
+                    page.width_pt,
+                    page.height_pt,
+                    scale_px_per_pt,
+                );
+                for req in requests {
+                    let key = PdfTileKey {
+                        asset_id: req.asset_id,
+                        page_index: req.page_index,
+                        tile_x: req.tile_x,
+                        tile_y: req.tile_y,
+                        tile_cols: req.tile_cols,
+                        tile_rows: req.tile_rows,
+                    };
+                    if !self.pdf_textures.contains_key(&key)
+                        && !self.in_flight_pdf.contains(&key)
+                        && worker.request_tile(req)
+                    {
+                        self.in_flight_pdf.insert(key);
+                    }
+                }
+            }
+        }
     }
 
     pub fn update_active_stroke(&mut self, page_id: PageId, mesh: &ContourMesh, style: BrushStyle) {
@@ -867,6 +1009,7 @@ impl UnifiedRenderer {
                 blit_u_off: u32,
                 is_highlighter: bool,
                 is_blackboard: bool,
+                scissor: [u32; 4],
             },
         }
 
@@ -994,12 +1137,31 @@ impl UnifiedRenderer {
                         dst_rect_ndc: [-1.0, 1.0, 1.0, -1.0],
                         tint: [1.0, 1.0, 1.0, hl_alpha],
                     });
-                    draw_ops.push(DrawOp::WetStroke {
-                        stroke_u_off,
-                        blit_u_off,
-                        is_highlighter: is_hl,
-                        is_blackboard: polarity == PaperPolarity::Blackboard,
-                    });
+                    let ps_x0 = (page_tl_scr.x * f64::from(display_scale))
+                        .floor()
+                        .clamp(0.0, f64::from(vp_w)) as u32;
+                    let ps_y0 = (page_tl_scr.y * f64::from(display_scale))
+                        .floor()
+                        .clamp(0.0, f64::from(vp_h)) as u32;
+                    let ps_x1 = ((page_tl_scr.x + page.width_pt * viewport.zoom)
+                        * f64::from(display_scale))
+                    .ceil()
+                    .clamp(0.0, f64::from(vp_w)) as u32;
+                    let ps_y1 = ((page_tl_scr.y + page.height_pt * viewport.zoom)
+                        * f64::from(display_scale))
+                    .ceil()
+                    .clamp(0.0, f64::from(vp_h)) as u32;
+                    let sw = ps_x1.saturating_sub(ps_x0);
+                    let sh = ps_y1.saturating_sub(ps_y0);
+                    if sw > 0 && sh > 0 {
+                        draw_ops.push(DrawOp::WetStroke {
+                            stroke_u_off,
+                            blit_u_off,
+                            is_highlighter: is_hl,
+                            is_blackboard: polarity == PaperPolarity::Blackboard,
+                            scissor: [ps_x0, ps_y0, sw, sh],
+                        });
+                    }
                 }
             }
         }
@@ -1055,6 +1217,7 @@ impl UnifiedRenderer {
                 blit_u_off,
                 is_highlighter,
                 is_blackboard,
+                scissor,
             } = *op
             {
                 if let (Some(act), Some((_, mask_view))) = (&self.active_stroke, &self.wet_mask_tex)
@@ -1139,6 +1302,7 @@ impl UnifiedRenderer {
                         &self.blit_alpha_pipeline
                     };
                     comp_pass.set_pipeline(comp_pipe);
+                    comp_pass.set_scissor_rect(scissor[0], scissor[1], scissor[2], scissor[3]);
                     comp_pass.set_bind_group(0, &wet_blit_bg, &[blit_u_off]);
                     comp_pass.draw(0..6, 0..1);
                 }
@@ -1199,7 +1363,61 @@ impl UnifiedRenderer {
             ],
         });
 
-        let mut img_draws: Vec<(AssetId, u32)> = Vec::new();
+        enum TileTexKey {
+            Image(AssetId),
+            Pdf(PdfTileKey),
+        }
+        let mut img_draws: Vec<(TileTexKey, u32)> = Vec::new();
+        if let PageBackground::Pdf {
+            asset_id,
+            page_index,
+            locked_placeholder: false,
+        } = page.background
+        {
+            let aid = AssetId(asset_id);
+            let mut matching_pdf_keys: Vec<PdfTileKey> = self
+                .pdf_textures
+                .keys()
+                .copied()
+                .filter(|k| k.asset_id == aid && k.page_index == page_index)
+                .collect();
+            matching_pdf_keys.sort_by_key(|k| (k.tile_y, k.tile_x));
+            for pk in matching_pdf_keys {
+                let pdf_rect = if pk.tile_cols == 1 && pk.tile_rows == 1 {
+                    Rect::new(0.0, 0.0, page.width_pt, page.height_pt)
+                } else {
+                    let scale = f64::from(self.last_pdf_scale_milli.max(1000)) / 1000.0;
+                    let full_w = (page.width_pt * scale).round().max(1.0);
+                    let full_h = (page.height_pt * scale).round().max(1.0);
+                    let x0_pt = (f64::from(pk.tile_x * MAX_PDF_TILE_PX) / full_w) * page.width_pt;
+                    let y0_pt = (f64::from(pk.tile_y * MAX_PDF_TILE_PX) / full_h) * page.height_pt;
+                    let x1_pt = (f64::from((pk.tile_x + 1) * MAX_PDF_TILE_PX).min(full_w) / full_w)
+                        * page.width_pt;
+                    let y1_pt = (f64::from((pk.tile_y + 1) * MAX_PDF_TILE_PX).min(full_h) / full_h)
+                        * page.height_pt;
+                    Rect::new(x0_pt, y0_pt, x1_pt, y1_pt)
+                };
+                if pdf_rect.intersects(tile_rect) {
+                    let off = self.uniform_arena.push(&ImageUniforms {
+                        view_bounds_pt: [
+                            tile_rect.min_x as f32,
+                            tile_rect.min_y as f32,
+                            tile_rect.max_x as f32,
+                            tile_rect.max_y as f32,
+                        ],
+                        img_bounds_pt: [
+                            pdf_rect.min_x as f32,
+                            pdf_rect.min_y as f32,
+                            pdf_rect.max_x as f32,
+                            pdf_rect.max_y as f32,
+                        ],
+                        crop_uv: [0.0, 0.0, 1.0, 1.0],
+                        extra: [0.0, 1.0, 0.0, 0.0],
+                    });
+                    img_draws.push((TileTexKey::Pdf(pk), off));
+                }
+            }
+        }
         for img in &page.images {
             if img.bounds.intersects(tile_rect) && self.image_textures.contains_key(&img.asset_id) {
                 let off = self.uniform_arena.push(&ImageUniforms {
@@ -1223,7 +1441,7 @@ impl UnifiedRenderer {
                     ],
                     extra: [img.rotation_rad, 1.0, 0.0, 0.0],
                 });
-                img_draws.push((img.asset_id, off));
+                img_draws.push((TileTexKey::Image(img.asset_id), off));
             }
         }
 
@@ -1356,11 +1574,15 @@ impl UnifiedRenderer {
             pass.draw(0..6, 0..1);
         }
 
-        // 2. Mipmapped Image layer
+        // 2. Mipmapped Image & PDF background layer
         if !img_draws.is_empty() {
             let mut img_bgs = Vec::with_capacity(img_draws.len());
-            for &(asset_id, u_off) in &img_draws {
-                if let Some(tex) = self.image_textures.get(&asset_id) {
+            for &(ref tex_key, u_off) in &img_draws {
+                let tex_opt = match tex_key {
+                    TileTexKey::Image(aid) => self.image_textures.get(aid),
+                    TileTexKey::Pdf(pk) => self.pdf_textures.get(pk),
+                };
+                if let Some(tex) = tex_opt {
                     let bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                         label: Some("swiftnote_tile_image_bg"),
                         layout: &self.image_bgl,
