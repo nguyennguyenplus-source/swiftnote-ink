@@ -128,6 +128,7 @@ impl SdlInputMapper {
         self.viewport_logical_size = (width.max(1.0), height.max(1.0));
     }
 
+    #[cfg(test)]
     pub fn pen_in_proximity(&self) -> bool {
         self.pen_in_proximity
     }
