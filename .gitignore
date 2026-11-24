@@ -1,0 +1,12 @@
+/target/
+**/*.rs.bk
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+pdfium.dll
+libpdfium.so
+SDL3.dll
+.agents/
