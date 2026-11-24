@@ -1,0 +1,32 @@
+[package]
+name = "swiftnote-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "swiftnote"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+arboard = { workspace = true }
+egui = { workspace = true }
+egui-wgpu = { workspace = true }
+pollster = { workspace = true }
+resvg = { workspace = true }
+rfd = { workspace = true }
+sdl3 = { workspace = true }
+swiftnote-core = { workspace = true }
+swiftnote-gpu = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+wgpu = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+arboard = { workspace = true, features = ["wayland-data-control"] }
+
+[lints]
+workspace = true
