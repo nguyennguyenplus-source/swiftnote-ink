@@ -13,7 +13,12 @@ thiserror = { workspace = true }
 zip = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 proptest = { workspace = true }
+
+[[bench]]
+name = "core_bench"
+harness = false
 
 [lints]
 workspace = true
