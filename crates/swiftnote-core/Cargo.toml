@@ -7,6 +7,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+blake3 = { workspace = true }
+directories = { workspace = true }
+png = { workspace = true }
+rstar = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -15,6 +19,7 @@ zip = { workspace = true }
 [dev-dependencies]
 criterion = { workspace = true }
 proptest = { workspace = true }
+tempfile = { workspace = true }
 
 [[bench]]
 name = "core_bench"

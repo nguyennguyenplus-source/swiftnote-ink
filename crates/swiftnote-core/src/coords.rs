@@ -77,6 +77,12 @@ pub struct Rect {
     pub max_y: f64,
 }
 
+impl Default for Rect {
+    fn default() -> Self {
+        Self::EMPTY
+    }
+}
+
 impl Rect {
     pub const EMPTY: Self = Self {
         min_x: f64::INFINITY,
