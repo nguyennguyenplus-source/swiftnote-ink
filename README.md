@@ -1,335 +1,243 @@
-# <img src="ui/pixmaps/com.github.xournalpp.xournalpp.svg" align="left" width="100" height="100">  <br> Xournal++
+<div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/swiftnote-logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/swiftnote-logo.svg">
+  <img alt="Swift note logo" src="assets/swiftnote-logo.svg" width="108" height="108">
+</picture>
 
-[![Build Status](https://dev.azure.com/xournalpp/xournalpp/_apis/build/status/CI?branchName=master)](https://dev.azure.com/xournalpp/xournalpp/_build/latest?definitionId=1&branchName=master)
+# Swift note
 
-<img src="readme/main.png" width=550px% title="Xournal++ on GNU/Linux"/>
+**Calm, tactile, canvas-first handwriting & PDF annotation — built on a hybrid C++20/GTK3 + Rust architecture.**
 
-## Translations
+[![Swift note CI](https://github.com/nguyennguyenplus-source/swiftnote-ink/actions/workflows/ci-swiftnote.yml/badge.svg)](https://github.com/nguyennguyenplus-source/swiftnote-ink/actions/workflows/ci-swiftnote.yml)
+[![Engine](https://img.shields.io/badge/Engine-C%2B%2B20%20%2B%20Rust-0F172A?style=flat&logo=rust&logoColor=white)](docs/ARCHITECTURE.md)
+[![UI](https://img.shields.io/badge/UI-GTK3%20%7C%20Zero%20Glassmorphism-2563EB?style=flat)](docs/ARCHITECTURE.md#4-zero-duplication-3-layout-gtk3-shell)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%2010%2F11%20%7C%20Linux%20(Wayland%2FX11)-059669?style=flat)](#installation--building-from-source)
+[![License: GPL v2](https://img.shields.io/badge/License-GPL--2.0-blue.svg)](LICENSE)
 
-Would you like to see Xournal++ in your own language? Translators are welcome to contribute to Xournal++.
+[Key Features](#key-features) • [Comparison](#comparison) • [Architecture](#hybrid-architecture) • [Shortcuts](#keyboard-shortcuts) • [Build & Test](#installation--building-from-source) • [Limitations & Roadmap](#current-limitations--breakthrough-roadmap)
 
-You can contribute translations on [Crowdin](https://crowdin.com/project/xournalpp/).
+</div>
 
-Interested in translating a new language? Discuss on [Matrix](https://matrix.to/#/#xournalpp_xournalpp:gitter.im) or create a [new issue](https://github.com/xournalpp/xournalpp/issues) to unlock the language on Crowdin.
+---
 
-**Thanks in advance!**
+## Overview
 
-## Features
+**Swift note** is an engineered fork of [Xournal++](https://github.com/xournalpp/xournalpp) (`1.3.8+dev`) that pairs Xournal++'s battle-tested vector ink, stylus pressure, geometry, and PDF annotation engine with a quiet, distraction-free workspace inspired by **Scrble Ink** and modern native design systems — backed by a memory-safe **Rust** core (`swiftnote-rs`) linked over a strict C ABI.
 
-Xournal++ (/ˌzɚnl̟ˌplʌsˈplʌs/) is a hand note-taking software written in C++ with the target of flexibility, functionality and speed.
-Stroke recognizer and other parts are based on Xournal Code, which you can find at [SourceForge](http://sourceforge.net/projects/xournal/).
+Traditional desktop note-taking tools force a trade-off: either rich open-source engines buried under dense legacy toolbars, or sleek closed-source UWP apps locked to one OS with limited PDF and vector capabilities. **Swift note** bridges that gap while preserving **100% file compatibility** with standard `.xopp` documents.
 
-Xournal++ features:
+---
 
-- Supports pressure-sensitive styluses and digital pen tables (e.g. Wacom, Huion, XP Pen, etc. tablets)
-- Paper backgrounds for note-taking, scratch paper, or whiteboarding
-- Annotate on top of PDFs
-- Select text from the background PDF, copy, highlight or underline it or strike it through
-- Follow links from the background PDF
-- Export to a variety of formats including SVG, PNG and PDF, both from the GUI and command line
-- Different drawing tools (e.g. pen, highlighter) and stroke styles (e.g. solid, dotted)
-- Shape drawing (line, arrow, circle, rectangle, spline)
-- Use the set-square and compass tools for measurements or as a guide for drawing straight lines, circular arcs and radii
-- Fill shape functionality
-- Shape resizing and rotation
-- Rotation and grid snapping for precise alignment of objects
-- Input stabilization for smoother writing/drawing
-- Text tool for adding text in different fonts, colors, and sizes
-- Enhanced support for image insertion
-- Eraser with multiple configurations
-- LaTeX support (requires a working LaTeX installation) with customizable template and a resizable editor with syntax highlighting
-- Sidebar containing page previews with advanced page sorting, PDF bookmarks and layers (can be individually hidden/edited)
-- Allows mapping different tools/colors etc. to stylus/mouse buttons
-- Customizable toolbar with multiple configurations, e.g. to optimize toolbar for portrait/landscape
-- Custom color palette support using the .gpl format
-- Page template definitions
-- Bug reporting, auto-save, and auto backup tools
-- Audio recording and playback alongside with handwritten notes
-- Multi language support (over 20 languages supported)
-- Plugins using Lua scripting
+## Key Features
 
+- **3 Switchable Solid-Opaque Layouts (`Zero Glassmorphism`)**
+  - **Pure Top Bar** — Clean single-row header toolbar for desktop clarity.
+  - **Canvas Pill** *(default)* — Minimal floating solid pill chrome that maximizes uninterrupted writing space.
+  - **Zen Bottom Dock** — Thumb- and stylus-friendly bottom dock for tablets and 2-in-1 laptops.
+  - Strictly **100% solid opaque surfaces**, calibrated contrast, and `Plus Jakarta Sans` typography — zero blur effects, zero translucent visual noise, and hidden legacy status/search chrome.
+- **Non-Destructive Blackboard Mode & Dual PDF Export**
+  - Switch any light notebook or ruled sheet into a matte chalkboard (`#16181D`) with a single key (`B`).
+  - Chroma-preserving display inversion automatically flips achromatic ink (black/charcoal ↔ white) while leaving colored math/study ink (blue, red, green, yellow highlighters) intact.
+  - Export **either** a clean printable white-paper PDF **or** the Blackboard dark look via an RAII `ScopedExportOverride` — without ever mutating saved strokes.
+- **Quick Pen Slots & Auto-Return Eraser**
+  - Up to 10 customizable pen/highlighter slots (color, stroke width, pressure sensitivity, solid/dashed/dotted style, Ink-to-Shape) accessible via `1`–`5`.
+  - Optional **Auto-Return Eraser** automatically switches back to your active pen the instant an erase stroke finishes.
+- **Scrble Ink-Style Single-Key Shortcuts & Visual 4-Tab Settings**
+  - Ergonomic single-key bindings (`E` Eraser, `L` Lasso, `R` Setsquare, `C` Compass, `T` Text, `B` Blackboard, `Z` Close-Up, `Tab` Focus Mode) with conflict-free live rebinding.
+  - Unified 4-tab visual Settings dialog (**Appearance**, **Pens & Ink**, **Shortcuts**, **Canvas & Library**).
+- **Close-Up Auto-Advance Writing Panel (`Z`)**
+  - Docked magnified writing strip (`2.5×` default zoom) with automatic margin-triggered line advancement so handwriting stays crisp on compact laptop or tablet screens.
+- **Vietnamese Diacritic-Insensitive Library & Instant Previews**
+  - Rust-powered notebook browser scanning `.xopp`, `.xoj`, and `.pdf` files with real-time diacritic-folded search (e.g. `"giai tich"` matches `"Giải tích 1.xopp"`), folder tree, and streamed `<preview>` thumbnail extraction.
+- **Lossless Clipboard Image Pipeline**
+  - Native Rust PNG/DIB normalization repairs the notorious Windows 32-bit `CF_DIB` all-zero alpha quirk without corrupting genuinely transparent PNGs.
+- **Built-In Study Templates & Precision Tools**
+  - One-click **Cornell Notes**, Ruled, Dotted, Graph, and Blank templates alongside full Xournal++ Setsquare, Compass, LaTeX, Audio recording, and Poppler PDF annotation support.
 
-<table>
-<tr>
-<td>
+---
 
-## GNU/Linux
+## Comparison
 
-<img src="readme/main.png" width=100% title="Xournal++ on GNU/Linux"/>
+| Capability | Upstream Xournal++ | Scrble Ink | **Swift note** |
+| :--- | :---: | :---: | :---: |
+| Cross-Platform (Windows + Linux Wayland/X11) | ✅ | ❌ *(Windows only)* | ✅ |
+| Open-Source (GPL-2.0) & Open `.xopp` Format | ✅ | ❌ | ✅ |
+| Canvas-First Minimal UI (3 Switchable Layouts) | ❌ *(Legacy multi-bar)* | ✅ | ✅ |
+| Non-Destructive Blackboard + Printable PDF Export | ❌ | ⚠️ *(Limited)* | ✅ |
+| Single-Key Ergonomic Shortcuts + Live Rebinding UI | ❌ | ✅ | ✅ |
+| Auto-Return Eraser & Quick Pen Slot Presets | ⚠️ *(Manual plugin)* | ✅ | ✅ |
+| Close-Up Auto-Advance Writing Panel | ❌ | ❌ | ✅ |
+| Vietnamese Diacritic-Insensitive Notebook Library | ❌ | ❌ | ✅ |
+| Win32 `CF_DIB` Zero-Alpha Lossless Image Paste Fix | ❌ | ✅ | ✅ |
+| Precision Setsquare, Compass, PDF & LaTeX Engine | ✅ | ❌ | ✅ |
 
-</td><td>
+---
 
-## Windows 10
+## Hybrid Architecture
 
-<img src="readme/main-win.png" width=100% title="Xournal++ on Windows 10"/>
+**Swift note** isolates UI/rendering orchestration (C++20/GTK3) from stateful persistence, media normalization, and filesystem indexing (Rust `staticlib`) across a panic-safe C ABI boundary (`swiftnote_ffi.h`).
 
-</td></tr><tr><td>
+```mermaid
+flowchart LR
+    subgraph CPP["C++20 / GTK3 Application Layer"]
+        Shell["SwiftShell\n(3 Layouts · Shortcuts · Settings)"]
+        CloseUp["CloseUpWritingPanel\n(Auto-Advance Magnifier)"]
+        LibUI["SwiftLibraryView\n(Notebook Browser)"]
+        Render["Cairo View Pipeline\n(StrokeView · TextView · BackgroundView)"]
+        Display["DisplayState\n(Lock-Free Atomics + ScopedExportOverride)"]
+        Bridge["SwiftBridge\n(RAII C++ Wrapper)"]
+    end
 
-## macOS Catalina
+    subgraph ABI["Panic-Safe C ABI (swiftnote_ffi.h)"]
+        FFI["catch_unwind · SnStatus · Explicit Deallocators"]
+    end
 
-<img src="readme/main-mac.png" width=100% title="Xournal++ on macOS Catalina"/>
+    subgraph RUST["Rust Core (swiftnote-rs staticlib)"]
+        Cfg["config.rs\n(Atomic JSON Settings · Pen Slots · Shortcuts)"]
+        Media["media.rs\n(Chroma-Aware Inversion · Lossless PNG/DIB Fix)"]
+        Lib["library.rs\n(WalkDir Scanner · Vietnamese Folding · Preview Peek)"]
+    end
 
-</td><td>
-
-## Xournal++ Mobile on Chromium OS
-
-<img src="https://gitlab.com/TheOneWithTheBraid/xournalpp_mobile/-/raw/master/fastlane/metadata/android/en_US/images/tenInchScreenshots/03.png" width=100% title="Xournal++ Mobile on Chromium OS"/>
-
-</td></tr><tr><td>
-
-## Toolbar / Page Background / Layer
-
-Multiple page background, easy selectable on the toolbar
-<img src="readme/background.png" width=100% title="Changing the page background in Xournal++"/>
-
-</td><td>
-
-## Layer sidebar and advanced layer selection
-
-<img src="readme/layer.png" width=100% title="Layers in Xournal++"/>
-
-</td></tr><tr><td>
-
-## Multiple predefined and fully customizable toolbars
-
-<img src="readme/toolbar.png" width=100% title="Custom toolbars in Xournal++"/>
-
-</td></tr></table>
-
-## User Guide
-
-Check out the [website](https://xournalpp.github.io/guide/overview/) for a detailed user guide.
-
-## Installing
-
-The official releases of Xournal++ can be found on the
-[Releases](https://github.com/xournalpp/xournalpp/releases) page. We provide
-binaries for Debian, Ubuntu, macOS and Windows.
-For other GNU/Linux distributions (or older/newer ones), we also provide an
-AppImage that is binary compatible with any distribution released around or
-after Ubuntu 22.04. For installing Xournal++ Mobile on handheld devices, please check out the [Mobile & web app section](#mobile--web-app)
-
-**A note for Ubuntu/Debian users**: The official binaries that we provide are
-only compatible with the _specific version of Debian or Ubuntu_ indicated by the
-file name. For example, if you are on Ubuntu 20.04, the binary whose name
-contains `Ubuntu-bionic` is _only_ compatible with Ubuntu 18.04. If your system
-is not one of the specific Debian or Ubuntu versions that are supported by the
-official binaries, we recommend you use either the PPA (Ubuntu only), the Flatpak, or the
-AppImage.
-
-There is also an _unstable_, [automated nightly
-release](https://github.com/xournalpp/xournalpp/releases/tag/nightly) that
-includes the very latest features and bug fixes.
-
-With the help of the community, Xournal++ is also available on official repositories
-of some popular GNU/Linux distros and platforms.
-
-[![Packaging status](https://repology.org/badge/vertical-allrepos/xournalpp.svg?columns=5)](https://repology.org/project/xournalpp/versions)
-
-
-### Debian
-
-On Debian bookworm and Debian sid the `xournalpp` package (stable version) is contained in the official repositories. Simply install via
-
-```sh
-sudo apt install xournalpp
+    Shell --> Bridge
+    CloseUp --> Bridge
+    LibUI --> Bridge
+    Render --> Display
+    Display -.-> Bridge
+    Bridge <--> FFI
+    FFI <--> Cfg
+    FFI <--> Media
+    FFI <--> Lib
 ```
 
-There are also the official [Stable releases](https://github.com/xournalpp/xournalpp/releases) and
-_unstable_ [automated nightly releases](https://github.com/xournalpp/xournalpp/releases/tag/nightly).
+> For module maps, FFI memory-ownership invariants, Cairo `Mask` safety hardening, and the testing pyramid, read the full **[Architecture Specification](docs/ARCHITECTURE.md)**.
 
-### Ubuntu and derivatives
+---
 
-On distros based on Ubuntu 22.04 Jammy Jellyfish (and later) the `xournalpp` package (stable version) is contained in the official repositories.
-Simply install via
+## Keyboard Shortcuts
 
-```sh
-sudo apt install xournalpp
+All shortcuts work out-of-the-box and are automatically suppressed when typing inside a Text Box or open popover. Every binding can be customized in **Settings → Shortcuts**.
+
+| Key | Action | Key | Action |
+| :---: | :--- | :---: | :--- |
+| `1` – `5` | Select Quick Pen Slot 1–5 (Pen / Highlighter) | `V` | Vertical Space Tool |
+| `E` | Eraser *(press again or finish stroke to return)* | `P` | Laser Pointer |
+| `L` | Freehand Lasso Selection | `H` | Hand / Pan Mode |
+| `S` | Rectangular Box Selection | `B` | Toggle Non-Destructive Blackboard |
+| `G` | Geometry / Ink-to-Shape | `Z` | Toggle Close-Up Writing Panel |
+| `T` | Text Box Tool | `N` | Append New Page |
+| `R` | Setsquare & Protractor Overlay | `D` | Toggle Light / Dark Theme |
+| `C` | Compass Overlay | `Tab` / `F` | Focus Mode (Hide Chrome) / Fullscreen |
+
+---
+
+## Installation & Building from Source
+
+### Prebuilt CI Artifacts
+
+Every push to `main` builds, tests, and uploads ready-to-run artifacts via [GitHub Actions](https://github.com/nguyennguyenplus-source/swiftnote-ink/actions/workflows/ci-swiftnote.yml):
+
+- **Windows 10/11 (x64 Portable):** Download `swiftnote-windows-portable` and launch `SwiftNote.exe`.
+- **Linux Ubuntu 24.04 (Wayland & X11):** Download `swiftnote-linux-ubuntu2404` (`.deb` installer or `.tar.gz` archive).
+
+### Building on Windows (MSYS2 UCRT64)
+
+```bash
+# 1. Install dependencies in MSYS2 UCRT64 shell
+pacman -S --needed \
+  mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja \
+  mingw-w64-ucrt-x86_64-gtk3 mingw-w64-ucrt-x86_64-poppler mingw-w64-ucrt-x86_64-poppler-data \
+  mingw-w64-ucrt-x86_64-librsvg mingw-w64-ucrt-x86_64-libzip mingw-w64-ucrt-x86_64-qpdf \
+  mingw-w64-ucrt-x86_64-libsndfile mingw-w64-ucrt-x86_64-portaudio mingw-w64-ucrt-x86_64-lua \
+  mingw-w64-ucrt-x86_64-gtksourceview4 mingw-w64-ucrt-x86_64-imagemagick \
+  mingw-w64-ucrt-x86_64-gettext mingw-w64-ucrt-x86_64-rust mingw-w64-ucrt-x86_64-gtest
+
+# 2. Configure & build Swift note + test suites
+cmake -B build-ucrt64 -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_GTEST=ON -DENABLE_CPPTRACE=OFF
+cmake --build build-ucrt64 --target xournalpp test-units test-gtk-integration --parallel
+
+# 3. Package portable Windows bundle (optional)
+bash windows-setup/package-swiftnote-portable.sh build-ucrt64 ./dist-swiftnote
 ```
 
-#### Stable PPA
-The latest stable version is available via the following [_unofficial_ PPA](https://github.com/xournalpp/xournalpp/issues/1013#issuecomment-692656810):
+### Building on Linux (Ubuntu 24.04 / Debian)
 
-```sh
-sudo add-apt-repository ppa:apandada1/xournalpp-stable
-sudo apt update
-sudo apt install xournalpp
+```bash
+# 1. Install build dependencies + Rust stable toolchain
+sudo apt-get update && sudo apt-get install -y \
+  cmake ninja-build g++ pkg-config gettext xvfb \
+  libgtk-3-dev libfontconfig-dev libpoppler-glib-dev poppler-data \
+  libzip-dev librsvg2-dev libsndfile1-dev portaudio19-dev \
+  liblua5.4-dev libgtksourceview-4-dev libqpdf-dev libgtest-dev
+
+# 2. Configure, build & package (.deb + .tar.gz)
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_GTEST=ON -DENABLE_CPPTRACE=OFF -DCPACK_GENERATOR="DEB;TGZ"
+cmake --build build --target xournalpp test-units test-gtk-integration --parallel
+(cd build && cpack -G "DEB;TGZ")
 ```
 
-#### Unstable PPA
-An _unstable_, nightly release is available for Ubuntu-based distributions via the following PPA:
+### Verification Suite
 
-```sh
-sudo add-apt-repository ppa:andreasbutti/xournalpp-master
-sudo apt update
-sudo apt install xournalpp
+```bash
+# Rust unit tests & strict zero-warning Clippy lint
+cargo test --manifest-path rust/swiftnote-rs/Cargo.toml
+cargo clippy --manifest-path rust/swiftnote-rs/Cargo.toml --all-targets -- -D warnings
+
+# C++ unit test suite (119 test cases)
+./build-ucrt64/test/test-units.exe --gtest_brief=1            # Windows
+./build/test/test-units --gtest_brief=1                       # Linux
+
+# End-to-end GTK3 regression suite (shell chrome, alpha, rulers, text box)
+./build-ucrt64/test/test-gtk-integration.exe --gtest_filter=SwiftShellRegressionTest.*
+xvfb-run -a ./build/test/test-gtk-integration --gtest_filter=SwiftShellRegressionTest.*
 ```
 
-This PPA is provided by the Xournal++ team. While it has the latest features and
-bug fixes, it has also not been tested thoroughly and may break periodically (we
-try our best not to break things, though).
+---
 
-### Fedora
+## Current Limitations & Breakthrough Roadmap
 
-The [released version of
-xournalpp](https://src.fedoraproject.org/rpms/xournalpp) is available in the
-[main repository](https://bodhi.fedoraproject.org/updates/?packages=xournalpp)
-via _Software_ application or the following command:
+Building **Swift note v1.0** on top of Xournal++ exposed concrete structural ceilings inherited from the upstream C++/GTK3/Cairo stack. Rather than hiding these constraints, we document them rigorously and use them to drive our **v1.1 → v2.0** engineering roadmap.
 
-```sh
-sudo dnf install xournalpp
-```
+### Honest Assessment of Current Limitations (v1.0)
 
-or
+| Domain | Observed Bottleneck (Xournal++ & Swift note v1.0) | Impact on Users |
+| :--- | :--- | :--- |
+| **Rendering Pipeline** | CPU-only Cairo software rasterization (`RenderJob` + full-page `ARGB32` `Mask`) | High RAM on 4K/HiDPI monitors; frame drops on dense PDFs or 120–240Hz styluses |
+| **Concurrency** | Single-threaded background `Scheduler` serializes page rasterization | Visible blank tiles during rapid multi-page textbook scrolling |
+| **Platform Toolkit** | Legacy GTK3 on Windows & Wayland | Wayland fractional-scaling blur; Windows IME preedit quirks with Vietnamese tools (Unikey/EVKey); modal popover grab fragility |
+| **Persistence** | Monolithic Gzip-XML `.xopp` rewrites the entire file on every save (`O(N)`) | Autosave stutter on 100+ page notebooks; incompatible with conflict-free sync |
+| **Ink Intelligence** | Strokes are purely geometric vectors without semantic indexing | No offline handwriting search (especially Vietnamese diacritics) or Ink-to-LaTeX math conversion |
+| **Workspace Model** | Paginated-only single-pane canvas | No infinite whiteboard for derivations/mind-maps; no side-by-side Split PDF + Notes view |
+| **Multi-Device Sync** | Local filesystem only | No built-in encrypted cross-device replication or conflict resolution |
+| **Stylus Physics** | Fixed Cairo stroke caps without tilt/azimuth shaders or latency prediction | Noticeable nib-to-ink lag on 120Hz+ displays; limited graphite/fountain brush realism |
 
-```sh
-pkcon install xournalpp
-```
+### Breakthrough Upgrade Roadmap (v1.1 → v2.0)
 
-The bleeding edge packages synced to xournalpp git master on a daily basis are available from [COPR luya/xournalpp](https://copr.fedorainfracloud.org/coprs/luya/xournalpp/).
-[![Copr build status](https://copr.fedorainfracloud.org/coprs/luya/xournalpp/package/xournalpp/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/luya/xournalpp/package/xournalpp/)
+| Release | Theme | Key Engineering Breakthroughs |
+| :--- | :--- | :--- |
+| **v1.1** | **Tactile Ink & Platform Polish** | Kalman / damped-spring stylus latency prediction; tilt/azimuth pencil & fountain shaders; native Win32 TSF/IME preedit bridge for Vietnamese input; persistent per-note viewport state. |
+| **v1.2** | **Local-First Offline AI (ONNX in Rust)** | Pure-offline ONNX Runtime (`ort`) stroke recognizer for **Ink-to-LaTeX** math and **Vietnamese HTR**; background SQLite FTS5 semantic search across all handwritten notes — zero cloud telemetry. |
+| **v1.3** | **Incremental `.swnote` & E2EE CRDT Sync** | Content-addressed SQLite + WAL storage (`O(Δ)` `< 2 ms` autosave) with lossless `.xopp` bidirectional import/export; **Automerge/Loro CRDT** op-log encrypted with `XChaCha20-Poly1305` (WebDAV / S3 / LAN P2P). |
+| **v2.0** | **GPU `wgpu` Engine & Hybrid Canvas** | Rust GPU tile renderer (`wgpu`/Vello) targeting `< 8 ms` motion-to-photon at 120Hz+; GTK4 / native compositor migration; **Split-View PDF + Cornell Notes**; **Hybrid Infinite Canvas** with printable frame anchors; Audio-Ink 2.0 (offline Whisper stroke-linked transcripts). |
 
-### openSUSE
+> Read the complete engineering critique, data structures, crate/library design, and target KPI benchmarks in **[`docs/ROADMAP.md`](docs/ROADMAP.md)**.
 
-On openSUSE Tumbleweed, the released version of Xournal++ is available from the
-main repository:
+---
 
-```sh
-sudo zypper in xournalpp
-```
+## Documentation Index
 
-For openSUSE Leap 15.0 and earlier, use the install link from
-[X11:Utilities](https://software.opensuse.org//download.html?project=X11%3AUtilities&package=xournalpp).
+- **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** — Hybrid C++20/Rust FFI boundary, lock-free display pipeline, lossless clipboard repair, and reliability hardening.
+- **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — Deep analysis of Xournal++ & Swift note limitations paired with technical blueprints for v1.1 → v2.0.
+- **[`CHANGELOG.md`](CHANGELOG.md)** — Release history for Swift note and upstream Xournal++ lineage.
+- **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — Development workflow, coding standards, design invariants, and verification gates.
 
-For all versions of openSUSE, bleeding edge packages synced to xournalpp git
-master on a weekly basis are available from
-[home:badshah400:Staging](https://software.opensuse.org//download.html?project=home%3Abadshah400%3AStaging&package=xournalpp).
+---
 
-### Arch Linux
+## Upstream Attribution & License
 
-The latest stable release is available [in the [extra]
-repository](https://www.archlinux.org/packages/extra/x86_64/xournalpp/).
+**Swift note** is a derivative work of **[Xournal++](https://github.com/xournalpp/xournalpp)** (branched from `1.3.8+dev`), which in turn builds upon the original Xournal stroke recognizer. We gratefully acknowledge the Xournal++ maintainers and contributors — see [`AUTHORS`](AUTHORS) for the complete upstream contributor list.
 
-To build the latest state of the master branch yourself, use [this AUR
-package](https://aur.archlinux.org/packages/xournalpp-git/).
-
-### Solus
-
-The latest stable release is available in the main repository:
-
-```sh
-sudo eopkg it xournalpp
-```
-
-
-### Chrome OS
-
-You can [enable the linux container](https://support.google.com/chromebook/answer/9145439?hl=en), and install the [Debian package](https://github.com/xournalpp/xournalpp?tab=readme-ov-file#debian) from the official Debian repositories.
-```sh
-sudo apt install xournalpp
-```
-
-### Flatpak
-
-The Xournal++ team officially supports a [FlatHub
-release](https://flathub.org/apps/details/com.github.xournalpp.xournalpp), which
-can be installed with
-
-```sh
-flatpak install flathub com.github.xournalpp.xournalpp
-```
-
-Note that for Xournal++ to work properly, you must have at least one GTK theme
-and one icon theme installed on Flatpak. To enable LaTeX support, you will also
-need to install the TeX Live extension:
-
-```sh
-flatpak install flathub org.freedesktop.Sdk.Extension.texlive
-```
-
-The Flatpak manifest can be found at the [Xournal++ Flatpak packaging
-repository](https://github.com/flathub/com.github.xournalpp.xournalpp), and all
-Flatpak-related packaging issues should be reported there.
-
-### Android
-
-Android is supported by Xournal++ Mobile. It can be downloaded [from F-Droid](https://f-droid.org/en/packages/online.xournal.mobile/) or you can [build](#building-the-mobile-app) it.
-
-
-### iOS
-
-Unfortunately, the iOS app is not published yet in the Apple App Store. Read [this](#mobile--web-app) to learn, why. Anyway, in the [Building section](#building-the-mobile-app) you can learn how to build an early preview.
-
-### Windows
-
-Official Windows releases are provided on the [Releases
-page](https://github.com/xournalpp/xournalpp/releases).
-
-You can also download it from the Microsoft Store (supports automated updates):
-
-<a href="https://apps.microsoft.com/detail/9nn1hhct0p1x?referrer=appbadge&mode=full" target="_blank"  rel="noopener noreferrer">
-	<img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200"/>
-</a>
-
-Our official GitHub release is also available via [winget](https://github.com/microsoft/winget-pkgs/tree/master/manifests/x/Xournal%2B%2B/Xournal%2B%2B). Open PowerShell and run:
-
-```sh
-winget install -e --id Xournal++.Xournal++
-```
-
-You can also install it via [Scoop](https://scoop.sh/):
-
-```sh
-scoop bucket add extras
-scoop install extras/xournalpp
-```
-You can easily update Xournal++ with winget or scoop.
-
-
-### macOS
-
-Releases for macOS are provided on the [Releases
-page](https://github.com/xournalpp/xournalpp/releases).
-However, the app will refuse to run due to Apple policies (see https://github.com/xournalpp/xournalpp/issues/6185). Run the following commands one by one to make it work:
-```
-xattr -c /Applications/Xournal++.app
-codesign --force --deep --sign - /Applications/Xournal++.app
-```
-And for those who type it out, don't forget to type the hyphen (`-`) between `--sign` and `/Applications/Xournal++.app`
-
-## Building
-
-We support building on three operating systems:
-
-- [Linux](readme/LinuxBuild.md)
-- [macOS](readme/MacBuild.md)
-- [Windows](readme/WindowsBuild.md)
-- [Windows on ARM (not officially supported)](readme/WindowsBuildArm.md)
-
-
-## File format
-
-The file extension `.xopp` is a gzipped XML file. PDFs are not embedded into the file, so if the PDF is deleted, the background is lost. `.xopp` is basically the same file format as `.xoj`, which is used by Xournal. Therefore, Xournal++ is able to read `.xoj` files, and can also export to `.xoj`. As soon as notes are exported to a `.xoj` file, all Xournal++ specific extensions like additional background types, are lost.
-
-`.xopp` files can theoretically be read by Xournal, as long as you do not use any new features. Xournal does not open files that contain new attributes or unknown values, so Xournal++ will add the extension `.xopp` to all saved files to indicate the potential presence of Xournal++-only features.
-
-All new files will be saved as `.xopp`. If an `.xoj` file that was created by Xournal is opened, the Save-As dialog will be displayed on save. If the `.xoj` file was created by Xournal++, the file will be overwritten on save and the file extension will not change.
-
-**We are currently introducing a new file format that can efficiently store attached PDF files and other attachments internally. We will still allow for attachments that are linked to external files. Please refer to [#937](https://github.com/xournalpp/xournalpp/issues/937) for further details.**
-
-## Mobile & web app
-
-From mid 2020 to May 2021, a Flutter-written mobile app for **Android** and **iOS** (unreleased) and the **web**
-has been developed, which supports the file format and most of the basic features of Xournal++.
-Unfortunately development has stalled and we have lost contact to the (single) developer. The web app is no longer available.
-You can still check out the [separate repository on GitLab](https://gitlab.com/TheOneWithTheBraid/xournalpp_mobile) or install it from [F-Droid](https://f-droid.org/en/packages/online.xournal.mobile/).
-
-### Building the mobile app
-
-- [Android Build](https://gitlab.com/TheOneWithTheBraid/xournalpp_mobile#getting-started)
-- [iOS Build](https://gitlab.com/TheOneWithTheBraid/xournalpp_mobile#getting-started)
-
-## Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md). If your pull request does not need Xournal++ to be built to test it (e.g. for a README update), you can prepend [skip ci] to the title of the commit to disable CI running.
+- **License:** Distributed under the **GNU General Public License v2.0** — see [`LICENSE`](LICENSE).
+- **Typography:** Ships with [Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans) under the SIL Open Font License 1.1.
+- **Iconography:** Toolbar glyphs inspired by clean geometric vector sets (Lucide / custom SVG).

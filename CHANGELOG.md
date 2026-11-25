@@ -1,6 +1,23 @@
 # Changelog
 
-## 1.3.8+dev (Unreleased)
+## Swift note 1.0.0
+
+*Forked from Xournal++ `1.3.8+dev` and re-architected with a calm, canvas-first GTK3 shell and a memory-safe Rust core (`swiftnote-rs`).*
+
+### Highlights
+* **Hybrid C++20/GTK3 + Rust Architecture:** Added `swiftnote-rs` static library linked over a panic-safe C ABI (`swiftnote_ffi.h`) handling atomic JSON configuration, lossless clipboard media normalization, chroma-aware ink inversion, and Vietnamese diacritic-insensitive notebook indexing.
+* **3 Switchable Solid-Opaque Layouts (`Zero Glassmorphism`):** Added Pure Top Bar, Canvas Pill (default), and Zen Bottom Dock layouts via zero-duplication live GTK widget reparenting, `Plus Jakarta Sans` typography, and rounded vector squircle branding.
+* **Non-Destructive Blackboard Mode & Dual PDF Export:** Lock-free `DisplayState` + RAII `ScopedExportOverride` allowing one-key matte chalkboard mode (`B`) with automatic achromatic ink inversion (`chroma <= 28`) and printable white-paper or Blackboard PDF export without mutating stored strokes.
+* **Scrble Ink-Style Workflow:** Single-key customizable shortcuts (`1`–`5`, `E`, `L`, `S`, `G`, `T`, `R`, `C`, `V`, `P`, `H`, `B`, `Z`, `N`, `D`, `Tab`, `F`), up to 10 quick pen slots, Auto-Return Eraser, and a unified 4-tab visual Settings dialog.
+* **Close-Up Auto-Advance Writing Panel (`Z`):** Docked magnified writing strip (`2.5×` default zoom) with margin-triggered automatic line advancement.
+* **Lossless Clipboard Image Pipeline:** Repaired Windows 32-bit `CF_DIB` all-zero alpha corruption in Rust without affecting genuinely transparent PNGs.
+* **Reliability & Regression Suite:** Hidden legacy `statusbar`/`searchBar` chrome, fixed `Color` `0xFF` alpha normalization, hardened `Mask::isInitialized()` against Cairo error poisoning, eliminated modal `GtkPopover` re-entrant destroy/stuck-grab bugs, restored instant Setsquare/Compass activation and Text Box focus, and added automated `SwiftShellRegressionTest` + Windows/Linux GitHub Actions CI.
+
+---
+
+# Upstream Xournal++ Changelog History
+
+## 1.3.8+dev (Upstream Base)
 
 ## 1.3.8
 
