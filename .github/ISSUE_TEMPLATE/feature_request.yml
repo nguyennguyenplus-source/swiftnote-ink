@@ -1,23 +1,24 @@
 name: Feature Request
-description: Suggest an idea for Xournal+.
-labels: enhancement
+description: Propose a workflow improvement or architectural upgrade for Swift note
+title: "[Feature]: "
+labels: ["enhancement"]
 body:
   - type: textarea
+    id: problem
     attributes:
-      label: Is Your Feature Request Related to a Problem?
-      description: A clear and concise description of what your problem is.
-      placeholder: Ex. I'm always frustrated when...
-  - type: textarea
-    attributes:
-      label: Feature Description
-      description: A clear and concise description of the feature that you would propose.
+      label: Problem / Workflow Need
+      description: Describe the handwriting, PDF annotation, or study workflow limitation you are facing.
     validations:
       required: true
   - type: textarea
+    id: proposal
     attributes:
-      label: Alternative Solutions
-      description: Add any alternative solutions that you may have considered here.
+      label: Proposed Solution
+      description: How should Swift note solve this while preserving canvas-first minimalism and solid opaque UI?
+    validations:
+      required: true
   - type: textarea
+    id: alternatives
     attributes:
-      label: Additional Context
-      description: Add any other contextual information for the problem here.
+      label: Alternatives / References
+      description: Mention relevant ideas from Scrble Ink, GoodNotes, Notability, Apple Freeform, or Xournal++.

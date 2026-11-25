@@ -35,6 +35,7 @@ desktop/desktop_install.sh
 rust/**/target/
 dist-swiftnote/
 non-existing-file-path
+.impeccable/
 
 # NetBeans
 nbproject/
