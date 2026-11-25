@@ -278,7 +278,7 @@ unsafe fn write_out_string(out_ptr: *mut *mut c_char, value: String) -> SnStatus
 
 #[no_mangle]
 pub extern "C" fn sn_version() -> *const c_char {
-    c"0.2.0".as_ptr()
+    c"0.1.0-beta.1".as_ptr()
 }
 
 /// # Safety

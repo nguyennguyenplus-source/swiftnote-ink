@@ -1,6 +1,6 @@
 # Changelog
 
-## Swift note 1.0.0
+## Swift note 0.1.0-beta.1 (Public Preview / Test Build)
 
 *Forked from Xournal++ `1.3.8+dev` and re-architected with a calm, canvas-first GTK3 shell and a memory-safe Rust core (`swiftnote-rs`).*
 

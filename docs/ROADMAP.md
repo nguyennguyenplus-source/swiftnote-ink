@@ -1,12 +1,12 @@
-# Technical Critique & Breakthrough Upgrade Roadmap (v1.1 → v2.0)
+# Technical Critique & Breakthrough Upgrade Roadmap (v0.2 → v1.0)
 
-> **Purpose:** This engineering whitepaper documents the **real structural limitations** observed in both upstream **Xournal++** and **Swift note v1.0**, and proposes a phased, technically grounded roadmap to elevate Swift note from a polished GTK3 fork into a next-generation, local-first, GPU-accelerated handwriting platform.
+> **Purpose:** This engineering whitepaper documents the **real structural limitations** observed in both upstream **Xournal++** and the current **Swift note v0.1 Beta (Public Preview)**, and proposes a phased, technically grounded roadmap to earn a true **`v1.0` General Availability** release as a next-generation, local-first, GPU-accelerated handwriting platform.
 
 ---
 
-## Part 1 — Honest Audit of Current Limitations (Xournal++ & Swift note v1.0)
+## Part 1 — Honest Audit of Current Limitations (Xournal++ & Swift note v0.1 Beta)
 
-While **Swift note v1.0** successfully modernizes the user experience, introduces a memory-safe Rust core, and eliminates major usability defects (legacy chrome clutter, Blackboard printing friction, Win32 clipboard alpha corruption, popover grabs, and Cairo `Mask` poisoning), **eight deep architectural bottlenecks** remain inherited from the upstream C++/GTK3/Cairo foundation:
+While **Swift note v0.1 Beta** successfully modernizes the user experience, introduces a memory-safe Rust core, and eliminates major usability defects (legacy chrome clutter, Blackboard printing friction, Win32 clipboard alpha corruption, popover grabs, and Cairo `Mask` poisoning), **eight deep architectural bottlenecks** remain inherited from the upstream C++/GTK3/Cairo foundation:
 
 ### 1. CPU-Only Cairo Software Rasterization
 - **Mechanism:** Every page in Xournal++ is rasterized into a full-page CPU-backed `cairo_image_surface_t` (`ARGB32`) via `RenderJob` and composited through `Mask`.
@@ -46,26 +46,26 @@ While **Swift note v1.0** successfully modernizes the user experience, introduce
 
 ---
 
-## Part 2 — Breakthrough Engineering Proposals (v1.1 → v2.0)
+## Part 2 — Breakthrough Engineering Proposals (v0.2 → v1.0)
 
 Because **Swift note** already embeds a first-class Rust static library (`swiftnote-rs`) compiled alongside C++20, we can progressively migrate heavy computational, AI, storage, and GPU rendering subsystems into **safe, concurrent Rust** while keeping `.xopp` interoperability intact.
 
 ```mermaid
 flowchart LR
-    V10["v1.0 (Shipped)\nHybrid C++20/GTK3 + Rust\n3 Layouts · Blackboard · FFI Core"]
-    V11["v1.1\nTactile Ink & IME\nKalman Prediction · Win32 TSF · Tilt Brushes"]
-    V12["v1.2\nOffline Local AI\nONNX Ink-to-LaTeX · Vietnamese HTR · FTS5"]
-    V13["v1.3\nIncremental .swnote\nSQLite WAL · E2EE CRDT Sync"]
-    V20["v2.0\nGPU Engine & Hybrid Canvas\nwgpu/Vello Tiles · GTK4 · Split PDF"]
+    V01["v0.1 Beta (Current Preview)\nHybrid C++20/GTK3 + Rust\n3 Layouts · Blackboard · FFI Core"]
+    V02["v0.2\nTactile Ink & IME\nKalman Prediction · Win32 TSF · Tilt Brushes"]
+    V03["v0.3\nOffline Local AI\nONNX Ink-to-LaTeX · Vietnamese HTR · FTS5"]
+    V04["v0.4\nIncremental .swnote\nSQLite WAL · E2EE CRDT Sync"]
+    V10["v1.0 (Stable GA)\nGPU Engine & Hybrid Canvas\nwgpu/Vello Tiles · GTK4 · Split PDF"]
 
-    V10 --> V11 --> V12 --> V13 --> V20
+    V01 --> V02 --> V03 --> V04 --> V10
 ```
 
 ---
 
-### Phase 1 — v1.1: Tactile Ink Dynamics & Platform Polish
+### Phase 1 — v0.2: Tactile Ink Dynamics & Platform Polish
 
-**Goal:** Eliminate perceived writing lag and fix everyday Windows/Vietnamese friction without disrupting the v1.0 stability baseline.
+**Goal:** Eliminate perceived writing lag and fix everyday Windows/Vietnamese friction without disrupting the v0.1 Beta stability baseline.
 
 1. **Predictive Ink Engine (Kalman / Damped-Spring Extrapolator in Rust):**
    - Implement a lightweight 2D constant-acceleration Kalman predictor in `swiftnote-rs` over the last 4–6 stylus samples `(x, y, vx, vy, dt)`.
@@ -79,7 +79,7 @@ flowchart LR
 
 ---
 
-### Phase 2 — v1.2: Pure-Offline AI — Ink-to-LaTeX & Vietnamese Handwriting Search
+### Phase 2 — v0.3: Pure-Offline AI — Ink-to-LaTeX & Vietnamese Handwriting Search
 
 **Goal:** Turn raw vector strokes into searchable, computable knowledge with **100% on-device execution and zero cloud dependency**.
 
@@ -94,7 +94,7 @@ flowchart LR
 
 ---
 
-### Phase 3 — v1.3: Incremental `.swnote` Storage & Local-First E2EE CRDT Sync
+### Phase 3 — v0.4: Incremental `.swnote` Storage & Local-First E2EE CRDT Sync
 
 **Goal:** Eliminate `O(N)` autosave stutters and enable conflict-free multi-device sync while staying 100% loyal to open formats.
 
@@ -110,7 +110,7 @@ flowchart LR
 
 ---
 
-### Phase 4 — v2.0: GPU `wgpu` Tile Engine, GTK4 Migration & Hybrid Infinite Canvas
+### Phase 4 — v1.0 (Stable GA): GPU `wgpu` Tile Engine, GTK4 Migration & Hybrid Infinite Canvas
 
 **Goal:** Remove the last hardware and UX ceilings for professional STEM, design, and academic workflows.
 
@@ -128,9 +128,9 @@ flowchart LR
 
 ---
 
-## Part 3 — Quantitative Engineering Targets (v1.0 Baseline vs. v2.0 Vision)
+## Part 3 — Quantitative Engineering Targets (v0.1 Beta Baseline vs. v1.0 GA Vision)
 
-| Engineering Metric | v1.0 Baseline (GTK3 / Cairo / `.xopp`) | v2.0 Target (`wgpu` / `.swnote` / Local AI) | Primary Enabler |
+| Engineering Metric | v0.1 Beta Baseline (GTK3 / Cairo / `.xopp`) | v1.0 GA Target (`wgpu` / `.swnote` / Local AI) | Primary Enabler |
 | :--- | :--- | :--- | :--- |
 | **Motion-to-Photon Ink Latency (120Hz)** | ~22–35 ms | **< 8 ms** | `wgpu` GPU overlay + Kalman prediction |
 | **Autosave Latency (200-page Notebook)** | ~350–900 ms (full Gzip-XML rewrite) | **< 2 ms** (`O(Δ)`) | SQLite WAL incremental `.swnote` |

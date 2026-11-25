@@ -11,6 +11,7 @@
 **Calm, tactile, canvas-first handwriting & PDF annotation — built on a hybrid C++20/GTK3 + Rust architecture.**
 
 [![Swift note CI](https://github.com/nguyennguyenplus-source/swiftnote-ink/actions/workflows/ci-swiftnote.yml/badge.svg)](https://github.com/nguyennguyenplus-source/swiftnote-ink/actions/workflows/ci-swiftnote.yml)
+[![Release](https://img.shields.io/badge/Stage-v0.1.0--beta.1%20(Public%20Preview)-F59E0B?style=flat)](CHANGELOG.md)
 [![Engine](https://img.shields.io/badge/Engine-C%2B%2B20%20%2B%20Rust-0F172A?style=flat&logo=rust&logoColor=white)](docs/ARCHITECTURE.md)
 [![UI](https://img.shields.io/badge/UI-GTK3%20%7C%20Canvas--First-2563EB?style=flat)](docs/ARCHITECTURE.md#5-zero-duplication-3-layout-gtk3-shell)
 [![Platforms](https://img.shields.io/badge/Platforms-Windows%2010%2F11%20%7C%20Linux%20(Wayland%2FX11)-059669?style=flat)](#installation--building-from-source)
@@ -27,6 +28,8 @@
 **Swift note** is an engineered fork of [Xournal++](https://github.com/xournalpp/xournalpp) (`1.3.8+dev`) that pairs Xournal++'s battle-tested vector ink, stylus pressure, geometry, and PDF annotation engine with a quiet, distraction-free workspace inspired by **Scrble Ink** and modern native design systems — backed by a memory-safe **Rust** core (`swiftnote-rs`) linked over a strict C ABI.
 
 Traditional desktop note-taking tools force a trade-off: either rich open-source engines buried under dense legacy toolbars, or sleek closed-source UWP apps locked to one OS with limited PDF and vector capabilities. **Swift note** bridges that gap while preserving **100% file compatibility** with standard `.xopp` documents.
+
+> **Pre-Release Notice (`v0.1.0-beta.1`):** Swift note is currently distributed as an early **Public Preview / Test Build** (`0.x` per SemVer 2.0.0) while core handwriting ergonomics, cross-platform packaging, and the hybrid Rust architecture undergo community testing ahead of a `v1.0` stable release.
 
 ---
 
@@ -199,11 +202,11 @@ xvfb-run -a ./build/test/test-gtk-integration --gtest_filter=SwiftShellRegressio
 
 ## Current Limitations & Breakthrough Roadmap
 
-Building **Swift note v1.0** on top of Xournal++ exposed concrete structural ceilings inherited from the upstream C++/GTK3/Cairo stack. Rather than hiding these constraints, we document them rigorously and use them to drive our **v1.1 → v2.0** engineering roadmap.
+Building **Swift note v0.1 Beta** on top of Xournal++ exposed concrete structural ceilings inherited from the upstream C++/GTK3/Cairo stack. Rather than hiding these constraints or rushing a premature `1.0` label, we document them rigorously and use them to drive our **v0.2 → v1.0** engineering roadmap.
 
-### Honest Assessment of Current Limitations (v1.0)
+### Honest Assessment of Current Limitations (v0.1 Beta)
 
-| Domain | Observed Bottleneck (Xournal++ & Swift note v1.0) | Impact on Users |
+| Domain | Observed Bottleneck (Xournal++ & Swift note v0.1 Beta) | Impact on Users |
 | :--- | :--- | :--- |
 | **Rendering Pipeline** | CPU-only Cairo software rasterization (`RenderJob` + full-page `ARGB32` `Mask`) | High RAM on 4K/HiDPI monitors; frame drops on dense PDFs or 120–240Hz styluses |
 | **Concurrency** | Single-threaded background `Scheduler` serializes page rasterization | Visible blank tiles during rapid multi-page textbook scrolling |
@@ -214,14 +217,14 @@ Building **Swift note v1.0** on top of Xournal++ exposed concrete structural cei
 | **Multi-Device Sync** | Local filesystem only | No built-in encrypted cross-device replication or conflict resolution |
 | **Stylus Physics** | Fixed Cairo stroke caps without tilt/azimuth shaders or latency prediction | Noticeable nib-to-ink lag on 120Hz+ displays; limited graphite/fountain brush realism |
 
-### Breakthrough Upgrade Roadmap (v1.1 → v2.0)
+### Breakthrough Upgrade Roadmap (v0.2 → v1.0)
 
 | Release | Theme | Key Engineering Breakthroughs |
 | :--- | :--- | :--- |
-| **v1.1** | **Tactile Ink & Platform Polish** | Kalman / damped-spring stylus latency prediction; tilt/azimuth pencil & fountain shaders; native Win32 TSF/IME preedit bridge for Vietnamese input; persistent per-note viewport state. |
-| **v1.2** | **Local-First Offline AI (ONNX in Rust)** | Pure-offline ONNX Runtime (`ort`) stroke recognizer for **Ink-to-LaTeX** math and **Vietnamese HTR**; background SQLite FTS5 semantic search across all handwritten notes — zero cloud telemetry. |
-| **v1.3** | **Incremental `.swnote` & E2EE CRDT Sync** | Content-addressed SQLite + WAL storage (`O(Δ)` `< 2 ms` autosave) with lossless `.xopp` bidirectional import/export; **Automerge/Loro CRDT** op-log encrypted with `XChaCha20-Poly1305` (WebDAV / S3 / LAN P2P). |
-| **v2.0** | **GPU `wgpu` Engine & Hybrid Canvas** | Rust GPU tile renderer (`wgpu`/Vello) targeting `< 8 ms` motion-to-photon at 120Hz+; GTK4 / native compositor migration; **Split-View PDF + Cornell Notes**; **Hybrid Infinite Canvas** with printable frame anchors; Audio-Ink 2.0 (offline Whisper stroke-linked transcripts). |
+| **v0.2** | **Tactile Ink & Platform Polish** | Kalman / damped-spring stylus latency prediction; tilt/azimuth pencil & fountain shaders; native Win32 TSF/IME preedit bridge for Vietnamese input; persistent per-note viewport state. |
+| **v0.3** | **Local-First Offline AI (ONNX in Rust)** | Pure-offline ONNX Runtime (`ort`) stroke recognizer for **Ink-to-LaTeX** math and **Vietnamese HTR**; background SQLite FTS5 semantic search across all handwritten notes — zero cloud telemetry. |
+| **v0.4** | **Incremental `.swnote` & E2EE CRDT Sync** | Content-addressed SQLite + WAL storage (`O(Δ)` `< 2 ms` autosave) with lossless `.xopp` bidirectional import/export; **Automerge/Loro CRDT** op-log encrypted with `XChaCha20-Poly1305` (WebDAV / S3 / LAN P2P). |
+| **v1.0** *(GA)* | **GPU `wgpu` Engine & Hybrid Canvas** | Rust GPU tile renderer (`wgpu`/Vello) targeting `< 8 ms` motion-to-photon at 120Hz+; GTK4 / native compositor migration; **Split-View PDF + Cornell Notes**; **Hybrid Infinite Canvas** with printable frame anchors; Audio-Ink 2.0 (offline Whisper stroke-linked transcripts). |
 
 > Read the complete engineering critique, data structures, crate/library design, and target KPI benchmarks in **[`docs/ROADMAP.md`](docs/ROADMAP.md)**.
 
@@ -230,7 +233,7 @@ Building **Swift note v1.0** on top of Xournal++ exposed concrete structural cei
 ## Documentation Index
 
 - **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** — Hybrid C++20/Rust FFI boundary, lock-free display pipeline, lossless clipboard repair, and reliability hardening.
-- **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — Deep analysis of Xournal++ & Swift note limitations paired with technical blueprints for v1.1 → v2.0.
+- **[`docs/ROADMAP.md`](docs/ROADMAP.md)** — Deep analysis of Xournal++ & Swift note limitations paired with technical blueprints for v0.2 → v1.0.
 - **[`CHANGELOG.md`](CHANGELOG.md)** — Release history for Swift note and upstream Xournal++ lineage.
 - **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — Development workflow, coding standards, design invariants, and verification gates.
 
