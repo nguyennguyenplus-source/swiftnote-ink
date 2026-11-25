@@ -29,7 +29,7 @@ xournalpp/
 │   ├── background/BackgroundView.cpp      # Non-destructive Blackboard surface substitution
 │   └── Mask.cpp                           # Cairo surface/context status validation guard
 ├── ui/
-│   ├── swiftnote.css                      # Solid-opaque design tokens (Zero Glassmorphism)
+│   ├── swiftnote.css                      # Calibrated Light/Dark UI design tokens
 │   ├── fonts/PlusJakartaSans.ttf          # Bundled UI typography
 │   └── pixmaps/swiftnote-logo-*.{svg,png} # Rounded vector identity assets
 └── test/gtk_tests/
@@ -92,7 +92,7 @@ On Windows, pasting screenshots from Snipping Tool, browsers, or Office applicat
 
 - **Live Widget Reparenting:** The three layouts — `PureTopBar`, `CanvasPill`, and `ZenBottomDock` — reuse the exact same GTK widget subtrees and signal handlers, reparenting containers cleanly on layout switch without leaking callbacks or losing active tool highlights.
 - **Legacy Chrome Suppression:** `SwiftShell::mount()` avoids `gtk_widget_show_all()` on the outer stack and runs `hideLegacyChrome()` to keep upstream `statusbar`, `searchBar`, and `searchToolbar` hidden (`gtk_widget_set_no_show_all(TRUE)`), dedicating maximum vertical space to the writing canvas.
-- **Zero Glassmorphism CSS Token System:** [`ui/swiftnote.css`](../ui/swiftnote.css) enforces 100% solid opaque surfaces (`#FFFFFF` / `#F5F6F8` light, `#16181D` / `#1E2028` dark) with subtle 1px structural hairlines — avoiding GTK3 translucent compositor artifacts on Windows and X11.
+- **Calibrated Solid-Surface CSS Token System:** [`ui/swiftnote.css`](../ui/swiftnote.css) defines clean Light (`#FFFFFF` / `#F5F6F8`) and Dark (`#16181D` / `#1E2028`) surface tokens with subtle 1px structural hairlines — ensuring consistent, artifact-free rendering across Windows and X11/Wayland compositors.
 - **Vietnamese Diacritic-Insensitive Library:** [`library.rs`](../rust/swiftnote-rs/src/library.rs) traverses the workspace directory (`WalkDir`, max depth 6, hidden entries skipped), folds Vietnamese diacritics (`đ/Đ → d`, `ă/â/á/à/ả/ã/ạ → a`, etc.) for both query and filename/folder haystacks, and performs a bounded streaming gzip peek to count `<page` tags and extract embedded base64 `<preview>` thumbnails without loading full documents into RAM.
 
 ---

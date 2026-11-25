@@ -12,7 +12,7 @@
 
 [![Swift note CI](https://github.com/nguyennguyenplus-source/swiftnote-ink/actions/workflows/ci-swiftnote.yml/badge.svg)](https://github.com/nguyennguyenplus-source/swiftnote-ink/actions/workflows/ci-swiftnote.yml)
 [![Engine](https://img.shields.io/badge/Engine-C%2B%2B20%20%2B%20Rust-0F172A?style=flat&logo=rust&logoColor=white)](docs/ARCHITECTURE.md)
-[![UI](https://img.shields.io/badge/UI-GTK3%20%7C%20Zero%20Glassmorphism-2563EB?style=flat)](docs/ARCHITECTURE.md#4-zero-duplication-3-layout-gtk3-shell)
+[![UI](https://img.shields.io/badge/UI-GTK3%20%7C%20Canvas--First-2563EB?style=flat)](docs/ARCHITECTURE.md#5-zero-duplication-3-layout-gtk3-shell)
 [![Platforms](https://img.shields.io/badge/Platforms-Windows%2010%2F11%20%7C%20Linux%20(Wayland%2FX11)-059669?style=flat)](#installation--building-from-source)
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
 
@@ -32,11 +32,11 @@ Traditional desktop note-taking tools force a trade-off: either rich open-source
 
 ## Key Features
 
-- **3 Switchable Solid-Opaque Layouts (`Zero Glassmorphism`)**
+- **3 Switchable Canvas-First Layouts**
   - **Pure Top Bar** — Clean single-row header toolbar for desktop clarity.
-  - **Canvas Pill** *(default)* — Minimal floating solid pill chrome that maximizes uninterrupted writing space.
+  - **Canvas Pill** *(default)* — Minimal floating pill chrome that maximizes uninterrupted writing space.
   - **Zen Bottom Dock** — Thumb- and stylus-friendly bottom dock for tablets and 2-in-1 laptops.
-  - Strictly **100% solid opaque surfaces**, calibrated contrast, and `Plus Jakarta Sans` typography — zero blur effects, zero translucent visual noise, and hidden legacy status/search chrome.
+  - Clean solid surfaces, calibrated Light/Dark contrast, `Plus Jakarta Sans` typography, and hidden legacy status/search chrome.
 - **Non-Destructive Blackboard Mode & Dual PDF Export**
   - Switch any light notebook or ruled sheet into a matte chalkboard (`#16181D`) with a single key (`B`).
   - Chroma-preserving display inversion automatically flips achromatic ink (black/charcoal ↔ white) while leaving colored math/study ink (blue, red, green, yellow highlighters) intact.

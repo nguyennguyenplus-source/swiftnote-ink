@@ -17,7 +17,7 @@
       Key Swift note capabilities:
     </p>
     <ul>
-      <li>3 switchable solid-opaque layouts (Pure Top Bar, Canvas Pill, Zen Bottom Dock) with Zero Glassmorphism</li>
+      <li>3 switchable canvas-first layouts (Pure Top Bar, Canvas Pill, Zen Bottom Dock) with calibrated Light and Dark themes</li>
       <li>Non-destructive Blackboard mode with chroma-preserving ink inversion and dual printable/Blackboard PDF export</li>
       <li>Quick Pen Slots, Auto-Return Eraser, and Scrble Ink-style single-key customizable shortcuts</li>
       <li>Close-Up auto-advance magnified writing panel and Vietnamese diacritic-insensitive notebook library</li>

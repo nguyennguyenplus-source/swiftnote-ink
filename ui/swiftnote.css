@@ -1,7 +1,7 @@
 /*
  * Swift note — Apple-Grade Minimalist Design System (GTK3)
  * Strict rules:
- *  - 100% solid opaque surfaces ONLY (ZERO glassmorphism, ZERO frosted glass, ZERO blur)
+ *  - Clean solid opaque surfaces with crisp contrast across Windows & Linux
  *  - Plus Jakarta Sans typography with full Vietnamese diacritic clarity
  *  - Supports 3 switchable layouts (layout-b1, layout-b2, layout-b3) with zero widget duplication
  *  - Ultra-slim edge-hugging chrome maximizing writing canvas space (~95%+)
@@ -474,7 +474,7 @@ button.swift-secondary-btn:hover {
 }
 
 /* ==========================================================================
-   DARK MODE (Calibrated Matte Graphite — Zero Glassmorphism)
+   DARK MODE (Calibrated Matte Graphite)
    ========================================================================== */
 
 window#mainWindow.darkMode {

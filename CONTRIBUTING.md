@@ -6,7 +6,7 @@ Thank you for your interest in contributing to **Swift note**! **Swift note** is
 
 ## Development Principles
 
-1. **Zero Glassmorphism UI Contract:** All chrome, popovers, panels, and docks must remain **100% solid opaque** with calibrated Light/Dark contrast tokens defined in [`ui/swiftnote.css`](ui/swiftnote.css). Do not introduce translucent blur surfaces or clutter the writing canvas.
+1. **Canvas-First UI Clarity:** Keep chrome, popovers, panels, and docks minimal, high-contrast, and cleanly styled using the Light/Dark theme tokens in [`ui/swiftnote.css`](ui/swiftnote.css) without cluttering the writing area.
 2. **Panic-Safe FFI Boundary:** Every `extern "C"` function in [`rust/swiftnote-rs/src/lib.rs`](rust/swiftnote-rs/src/lib.rs) must be wrapped in `catch_unwind`, validate null pointers/UTF-8, and pair any heap allocation with an explicit Rust deallocator wrapped in RAII inside [`src/core/gui/swiftnote/SwiftBridge.cpp`](src/core/gui/swiftnote/SwiftBridge.cpp).
 3. **Non-Destructive Document Model:** Display-layer features (such as Blackboard mode) must never mutate underlying `.xopp` stroke RGB values. Always preserve **100% compatibility** with standard `.xopp` files.
 4. **Canvas-First Input Safety:** Never destroy a modal `GtkPopover` synchronously inside its own click handler; always pop down first, schedule deferred cleanup via `g_idle_add`, and restore focus to `XournalView`.

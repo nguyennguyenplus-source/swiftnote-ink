@@ -6,7 +6,7 @@
 
 ### Highlights
 * **Hybrid C++20/GTK3 + Rust Architecture:** Added `swiftnote-rs` static library linked over a panic-safe C ABI (`swiftnote_ffi.h`) handling atomic JSON configuration, lossless clipboard media normalization, chroma-aware ink inversion, and Vietnamese diacritic-insensitive notebook indexing.
-* **3 Switchable Solid-Opaque Layouts (`Zero Glassmorphism`):** Added Pure Top Bar, Canvas Pill (default), and Zen Bottom Dock layouts via zero-duplication live GTK widget reparenting, `Plus Jakarta Sans` typography, and rounded vector squircle branding.
+* **3 Switchable Canvas-First Layouts:** Added Pure Top Bar, Canvas Pill (default), and Zen Bottom Dock layouts via zero-duplication live GTK widget reparenting, `Plus Jakarta Sans` typography, and rounded vector squircle branding.
 * **Non-Destructive Blackboard Mode & Dual PDF Export:** Lock-free `DisplayState` + RAII `ScopedExportOverride` allowing one-key matte chalkboard mode (`B`) with automatic achromatic ink inversion (`chroma <= 28`) and printable white-paper or Blackboard PDF export without mutating stored strokes.
 * **Scrble Ink-Style Workflow:** Single-key customizable shortcuts (`1`–`5`, `E`, `L`, `S`, `G`, `T`, `R`, `C`, `V`, `P`, `H`, `B`, `Z`, `N`, `D`, `Tab`, `F`), up to 10 quick pen slots, Auto-Return Eraser, and a unified 4-tab visual Settings dialog.
 * **Close-Up Auto-Advance Writing Panel (`Z`):** Docked magnified writing strip (`2.5×` default zoom) with margin-triggered automatic line advancement.

@@ -12,4 +12,4 @@
 - [ ] `cargo clippy --manifest-path rust/swiftnote-rs/Cargo.toml --all-targets -- -D warnings` passes with 0 warnings
 - [ ] `test-units` passes cleanly
 - [ ] `SwiftShellRegressionTest` passes (no legacy statusbar/searchBar regressions, opaque `0xFF` color alpha, Setsquare/Compass & Text Box verified)
-- [ ] UI changes strictly preserve **100% solid opaque surfaces (Zero Glassmorphism)** and canvas-first proportions
+- [ ] UI changes preserve clean, distraction-free, canvas-first proportions in both Light and Dark themes
