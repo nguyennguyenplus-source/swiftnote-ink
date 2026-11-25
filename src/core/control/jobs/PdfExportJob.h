@@ -18,11 +18,14 @@ class Control;
 
 class PdfExportJob: public BaseExportJob {
 public:
-    PdfExportJob(Control* control, fs::path filepath);
+    PdfExportJob(Control* control, fs::path filepath, bool forceLightPaper = false);
 
 protected:
     ~PdfExportJob() override;
 
 public:
     void run() override;
+
+private:
+    bool forceLightPaper = false;
 };

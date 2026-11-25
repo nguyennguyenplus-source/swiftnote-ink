@@ -175,6 +175,7 @@ void XojPageView::endLink() { this->linkHandler.reset(); }
 void XojPageView::startText(double x, double y) {
     this->xournal->endTextAllPages(this);
     this->xournal->getControl()->getSearchBar()->showSearchBar(false);
+    this->xournal->requestFocus();
 
     if (this->textEditor != nullptr) {
         if (!this->textEditor->isEventInEditor(x, y)) {
@@ -1122,6 +1123,7 @@ auto XojPageView::paintPage(cairo_t* cr, GdkRectangle* rect) -> bool {
      * To anyone adding another painter here: please keep this assumption true
      */
     for (const auto& v: this->overlayViews) {
+        xoj::util::CairoSaveGuard overlayGuard(cr);
         v->draw(cr);
     }
 

@@ -11,8 +11,9 @@
 
 #pragma once
 
-#include <limits>  // for numeric_limits
-#include <string>  // for string
+#include <cstdint>  // for uint32_t
+#include <limits>   // for numeric_limits
+#include <string>   // for string
 
 #include <gdk-pixbuf/gdk-pixbuf.h>  // for GdkPixbuf
 #include <gdk/gdk.h>                // for GdkAtom, GdkEvent
@@ -28,6 +29,7 @@ public:
     virtual void clipboardPasteEnabled(bool enabled) = 0;
     virtual void clipboardPasteText(std::string text) = 0;
     virtual void clipboardPasteImage(GdkPixbuf* img) = 0;
+    virtual void clipboardPastePng(std::string pngBytes, uint32_t width, uint32_t height) {}
     virtual void clipboardPasteXournal(ObjectInputStream& in) = 0;
     virtual void deleteSelection() = 0;
 
@@ -58,6 +60,7 @@ private:
 
     static void pasteClipboardContents(GtkClipboard* clipboard, GtkSelectionData* selectionData,
                                        ClipboardHandler* handler);
+    static void pasteClipboardPng(GtkClipboard* clipboard, GtkSelectionData* selectionData, ClipboardHandler* handler);
     static void pasteClipboardImage(GtkClipboard* clipboard, GdkPixbuf* pixbuf, ClipboardHandler* handler);
 
     static void pasteClipboardText(GtkClipboard* clipboard, const gchar* text, ClipboardHandler* handler);
@@ -72,5 +75,6 @@ private:
     bool containsText = false;
     bool containsXournal = false;
     bool containsImage = false;
+    bool containsPng = false;
     bool pastePending = false;
 };

@@ -1,5 +1,8 @@
 #include "Control.h"
 
+#include "gui/swiftnote/SwiftBridge.h"
+#include "gui/swiftnote/SwiftShell.h"
+
 #include <algorithm>  // for max
 #include <cstdlib>    // for size_t
 #include <exception>  // for exce...
@@ -394,15 +397,27 @@ bool Control::toggleSetsquare() {
     return toggleGeometryTool<Setsquare, xoj::view::SetsquareView, SetsquareController, SetsquareInputHandler,
                               GeometryToolType::SETSQUARE>();
 }
+bool Control::hasSetsquare() const {
+    return this->geometryToolController && this->geometryToolController->getType() == GeometryToolType::SETSQUARE;
+}
+bool Control::hasCompass() const {
+    return this->geometryToolController && this->geometryToolController->getType() == GeometryToolType::COMPASS;
+}
 
 template <class ToolClass, class ViewClass, class ControllerClass, class InputHandlerClass, GeometryToolType toolType>
 bool Control::toggleGeometryTool() {
     bool needsNewGeometryTool = !this->geometryToolController || this->geometryToolController->getType() != toolType;
     this->resetGeometryTool();
     if (!needsNewGeometryTool) {
+        if (this->win && this->win->getXournal() && this->win->getXournal()->getWidget()) {
+            gtk_widget_queue_draw(this->win->getXournal()->getWidget());
+        }
         return false;
     }
     const auto view = this->win->getXournal()->getViewFor(getCurrentPageNo());
+    if (!view) {
+        return false;
+    }
     const auto* xournal = GTK_XOURNAL(this->win->getXournal()->getWidget());
     auto tool = new ToolClass();
     view->addOverlayView(std::make_unique<ViewClass>(tool, view, zoom));
@@ -420,6 +435,7 @@ bool Control::toggleGeometryTool() {
     }
     xournal->input->setGeometryToolInputHandler(std::move(geometryToolInputHandler));
     geometryTool->notify();
+    gtk_widget_queue_draw(this->win->getXournal()->getWidget());
     return true;
 }
 
@@ -932,6 +948,10 @@ void Control::insertPage(const PageRef& page, size_t position, bool shouldScroll
 
     getCursor()->updateCursor();
 
+    if (win && win->getSwiftShell()) {
+        win->getSwiftShell()->syncToolHighlight();
+    }
+
     // make the inserted page fully visible (or at least as much from the top which fits on the screen),
     // and make the page appear selected
     if (shouldScrollToPage) {
@@ -1251,6 +1271,10 @@ void Control::toolChanged() {
 
     getCursor()->updateCursor();
 
+    if (win && win->getSwiftShell()) {
+        win->getSwiftShell()->syncToolHighlight();
+    }
+
     if (type != TOOL_TEXT) {
         if (win) {
             win->getXournal()->endTextAllPages();
@@ -1290,6 +1314,10 @@ void Control::toolSizeChanged() {
     this->actionDB->setActionState(Action::TOOL_SIZE, toolHandler->getSize());
 
     getCursor()->updateCursor();
+
+    if (win && win->getSwiftShell()) {
+        win->getSwiftShell()->syncToolHighlight();
+    }
 }
 
 void Control::toolFillChanged() {
@@ -1351,6 +1379,10 @@ auto Control::getLineStyleToSelect() -> std::optional<string> const {
 void Control::toolColorChanged() {
     this->actionDB->setActionState(Action::TOOL_COLOR, getToolHandler()->getColorMaskAlpha());
     getCursor()->updateCursor();
+
+    if (win && win->getSwiftShell()) {
+        win->getSwiftShell()->syncToolHighlight();
+    }
 }
 
 void Control::changeColorOfSelection() {
@@ -1858,6 +1890,10 @@ void Control::fileLoaded(int scrollToPage) {
     updateWindowTitle();
     win->getXournal()->forceUpdatePagenumbers();
     getCursor()->updateCursor();
+
+    if (win && win->getSwiftShell()) {
+        win->getSwiftShell()->syncToolHighlight();
+    }
     updatePageActions();
 }
 
@@ -2103,7 +2139,11 @@ void Control::updateWindowTitle() {
     }
     this->doc->unlock_shared();
 
-    title += " - Xournal++";
+    if (this->win && this->win->getSwiftShell()) {
+        this->win->getSwiftShell()->updateDocumentTitle(title);
+    }
+
+    title += " - Swift note";
 
     gtk_window_set_title(getGtkWindow(), title.c_str());
 }
@@ -2117,14 +2157,14 @@ static fs::path createExportFilePath(Document* doc, const Settings* settings) {
     return suggestedPath;
 }
 
-void Control::exportAsPdf() {
+void Control::exportAsPdf(bool forceLightPaper) {
     this->clearSelectionEndText();
 
     auto suggestedPath = createExportFilePath(this->doc, this->settings);
 
-    auto callback = [ctrl = this](std::optional<fs::path> out) {
+    auto callback = [ctrl = this, forceLightPaper](std::optional<fs::path> out) {
         if (out) {
-            auto* job = new PdfExportJob(ctrl, std::move(*out));
+            auto* job = new PdfExportJob(ctrl, std::move(*out), forceLightPaper);
             ctrl->scheduler->addJob(job, JOB_PRIORITY_NONE);
             job->unref();
         }
@@ -2391,16 +2431,77 @@ void Control::clipboardPasteText(string text) {
     clipboardPaste(std::move(t));
 }
 
-void Control::clipboardPasteImage(GdkPixbuf* img) {
-    auto image = std::make_unique<Image>();
-    xoj::util::GObjectSPtr<GdkPixbuf> pixbuf(gdk_pixbuf_apply_embedded_orientation(img), xoj::util::adopt);
+void Control::clipboardPastePng(std::string pngBytes, uint32_t pxWidth, uint32_t pxHeight) {
+    if (pngBytes.empty() || pxWidth == 0 || pxHeight == 0) {
+        return;
+    }
 
+    auto image = std::make_unique<Image>();
+    image->setImage(std::move(pngBytes));
+
+    auto zoom100 = this->getZoomControl()->getZoom100Value();
+    auto width = static_cast<double>(pxWidth) / zoom100;
+    auto height = static_cast<double>(pxHeight) / zoom100;
+
+    auto pageNr = getCurrentPageNo();
+    if (pageNr == npos) {
+        return;
+    }
+
+    this->doc->lock_shared();
+    PageRef page = this->doc->getPage(pageNr);
+    auto pageWidth = page->getWidth();
+    auto pageHeight = page->getHeight();
+    page.reset();
+    this->doc->unlock_shared();
+
+    pageWidth = pageWidth * 3.0 / 4.0;
+    pageHeight = pageHeight * 3.0 / 4.0;
+
+    double scaling = 1.0;
+    if (width > pageWidth) {
+        scaling = pageWidth / width;
+    }
+    if (height > pageHeight) {
+        scaling = std::min(scaling, pageHeight / height);
+    }
+
+    scaling /= zoom100;
+    image->setTransformation(xoj::util::Matrix::SCALING(scaling, scaling));
+    clipboardPaste(std::move(image));
+}
+
+void Control::clipboardPasteImage(GdkPixbuf* img) {
+    xoj::util::GObjectSPtr<GdkPixbuf> pixbuf(gdk_pixbuf_apply_embedded_orientation(img), xoj::util::adopt);
+    if (!pixbuf) {
+        return;
+    }
+
+    const int w = gdk_pixbuf_get_width(pixbuf.get());
+    const int h = gdk_pixbuf_get_height(pixbuf.get());
+    const int nChannels = gdk_pixbuf_get_n_channels(pixbuf.get());
+    const int rowstride = gdk_pixbuf_get_rowstride(pixbuf.get());
+
+    // Repair Windows 32-bit DIB all-zero alpha quirk and store 100% lossless PNG via Rust swiftnote-media
+    if (w > 0 && h > 0 && nChannels == 4 && gdk_pixbuf_get_bits_per_sample(pixbuf.get()) == 8) {
+        const guchar* pixels = gdk_pixbuf_read_pixels(pixbuf.get());
+        const size_t totalLen = static_cast<size_t>(rowstride) * static_cast<size_t>(h);
+        if (auto png = swiftnote::SwiftBridge::pixelsToLosslessPng(
+                    pixels, totalLen, static_cast<uint32_t>(w), static_cast<uint32_t>(h),
+                    static_cast<uint32_t>(rowstride), /*isBgra=*/false, /*fixAllZeroAlpha=*/true)) {
+            std::string pngStr(reinterpret_cast<const char*>(png->data()), png->size());
+            clipboardPastePng(std::move(pngStr), static_cast<uint32_t>(w), static_cast<uint32_t>(h));
+            return;
+        }
+    }
+
+    auto image = std::make_unique<Image>();
     image->setImage(pixbuf.get());
 
     auto zoom100 = this->getZoomControl()->getZoom100Value();
 
-    auto width = static_cast<double>(gdk_pixbuf_get_width(pixbuf.get())) / zoom100;
-    auto height = static_cast<double>(gdk_pixbuf_get_height(pixbuf.get())) / zoom100;
+    auto width = static_cast<double>(w) / zoom100;
+    auto height = static_cast<double>(h) / zoom100;
 
     auto pageNr = getCurrentPageNo();
     if (pageNr == npos) {

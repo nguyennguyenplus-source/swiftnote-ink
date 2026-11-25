@@ -1,0 +1,33 @@
+[package]
+name = "swiftnote-rs"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-or-later"
+description = "Rust core modules for Swift Note (Xournal++ fork): config, note library indexer, lossless clipboard media, and blackboard ink inversion"
+
+[lib]
+name = "swiftnote_rs"
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+base64 = "0.22"
+directories = "6.0"
+flate2 = "1.0"
+png = "0.17"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+walkdir = "2.5"
+
+[dev-dependencies]
+tempfile = "3.14"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

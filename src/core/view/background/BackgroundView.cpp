@@ -2,6 +2,7 @@
 
 #include <glib.h>  // for g_warning
 
+#include "gui/swiftnote/SwiftBridge.h"
 #include "model/PageType.h"                          // for PageType, PageTy...
 #include "model/XojPage.h"                           // for XojPage
 #include "view/background/OneColorBackgroundView.h"  // for OneColorBackgrou...
@@ -82,13 +83,19 @@ auto BackgroundView::createForPage(ConstPageRef page, BackgroundFlags bgFlags, P
                 return nullptr;
         }
     } else {
+        const Color effectiveBg = swiftnote::DisplayState::isBlackboardActive()
+                                          ? swiftnote::DisplayState::blackboardSurfaceColor()
+                                          : page->getBackgroundColor();
         if (bgFlags.showRuling) {
-            return createRuled(width, height, page->getBackgroundColor(), pt);
+            return createRuled(width, height, effectiveBg, pt);
         }
     }
 
     if (bgFlags.forceBackgroundColor) {
-        return std::make_unique<PlainBackgroundView>(width, height, page->getBackgroundColor());
+        const Color effectiveBg = swiftnote::DisplayState::isBlackboardActive()
+                                          ? swiftnote::DisplayState::blackboardSurfaceColor()
+                                          : page->getBackgroundColor();
+        return std::make_unique<PlainBackgroundView>(width, height, effectiveBg);
     } else {
         return std::make_unique<BackgroundView>(width, height);  // Dummy no-op view
     }

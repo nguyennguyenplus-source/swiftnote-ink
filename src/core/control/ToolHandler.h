@@ -183,6 +183,7 @@ public:
      * @param size is clamped to be within the defined range [0,5)
      */
     void setSize(ToolSize size);
+    void setCustomThickness(ToolType type, double widthPt);
 
     /**
      * @brief Set the Button Size

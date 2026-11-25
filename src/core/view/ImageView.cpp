@@ -27,6 +27,7 @@ void ImageView::draw(const Context& ctx) const {
     image->getTransformation().transformCairo(cr);
 
     cairo_set_source_surface(cr, img, 0, 0);
+    cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_BEST);
     // make images translucent when highlighting elements with audio, as they can not have audio
     if (ctx.fadeOutNonAudio) {
         cairo_paint_with_alpha(cr, OPACITY_NO_AUDIO);

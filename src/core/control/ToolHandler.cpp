@@ -330,6 +330,20 @@ void ToolHandler::setSize(ToolSize size) {
     this->stateChangeListener->toolSizeChanged();
 }
 
+void ToolHandler::setCustomThickness(ToolType type, double widthPt) {
+    if (type < TOOL_PEN || type > TOOL_HIGHLIGHTER) {
+        return;
+    }
+    Tool* tool = this->tools[type - TOOL_PEN].get();
+    if (tool && tool->thickness) {
+        tool->thickness.value()[TOOL_SIZE_MEDIUM] = std::clamp(widthPt, 0.3, 48.0);
+        tool->setSize(TOOL_SIZE_MEDIUM);
+        if (this->activeTool == tool || this->toolbarSelectedTool == tool) {
+            this->stateChangeListener->toolSizeChanged();
+        }
+    }
+}
+
 void ToolHandler::setButtonSize(ToolSize size, Button button) {
     ToolSize clippedSize = std::clamp(size, TOOL_SIZE_VERY_FINE, TOOL_SIZE_VERY_THICK);
     if (clippedSize != size)

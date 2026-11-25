@@ -14,7 +14,7 @@ target_compile_features(xournalpp-core PUBLIC ${PROJECT_CXX_FEATURES})
 target_compile_features(xournalpp-core PUBLIC cxx_std_20)
 target_link_libraries(xournalpp-core
         PRIVATE xoj::util ${xournalpp_LDFLAGS}
-        PUBLIC xoj::defaults xoj::external_modules
+        PUBLIC xoj::defaults xoj::external_modules swiftnote::rs
         )
 target_include_directories(xournalpp-core PUBLIC ${xournalpp_include_dirs})
 add_library(xoj::core ALIAS xournalpp-core)

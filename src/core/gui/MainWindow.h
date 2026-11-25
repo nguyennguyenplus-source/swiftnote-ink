@@ -42,6 +42,10 @@ class GladeSearchpath;
 
 class Menubar;
 
+namespace swiftnote {
+class SwiftShell;
+}
+
 typedef std::array<xoj::util::WidgetSPtr, TOOLBAR_DEFINITIONS_LEN> ToolbarWidgetArray;
 
 class MainWindow: public GladeGui {
@@ -91,6 +95,7 @@ public:
 
     PdfFloatingToolbox* getPdfToolbox() const;
     FloatingToolbox* getFloatingToolbox() const;
+    swiftnote::SwiftShell* getSwiftShell() const;
 
     void updateScrollbarSidebarPosition();
 
@@ -188,4 +193,6 @@ private:
     xoj::util::WidgetSPtr panedContainerWidget;
     xoj::util::WidgetSPtr mainContentWidget;
     xoj::util::WidgetSPtr sidebarWidget;
+
+    std::unique_ptr<swiftnote::SwiftShell> swiftShell;
 };

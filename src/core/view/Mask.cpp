@@ -100,7 +100,10 @@ void Mask::constructorImpl(DPIInfoType dpiInfo, const Range& extent, double zoom
 
 auto Mask::get() -> cairo_t* { return cr.get(); }
 
-bool Mask::isInitialized() const { return cr; }
+bool Mask::isInitialized() const {
+    return cr && cairo_status(cr.get()) == CAIRO_STATUS_SUCCESS &&
+           cairo_surface_status(cairo_get_target(cr.get())) == CAIRO_STATUS_SUCCESS;
+}
 
 void Mask::blitTo(cairo_t* targetCr) const {
     xoj_assert(isInitialized());

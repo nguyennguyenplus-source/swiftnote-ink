@@ -1,5 +1,7 @@
 #include "TextEditionView.h"
 
+#include "gui/swiftnote/SwiftBridge.h"
+
 #include "control/tools/TextEditor.h"
 #include "model/Text.h"
 #include "util/Color.h"
@@ -114,7 +116,7 @@ void TextEditionView::drawWithoutDrawingAids(cairo_t* cr) const {
     xoj::util::CairoSaveGuard saveGuard(cr);
 
     const Text* textElement = this->textEditor->getTextElement();
-    Util::cairo_set_source_rgbi(cr, textElement->getColor());
+    Util::cairo_set_source_rgbi(cr, swiftnote::DisplayState::resolveInkColor(textElement->getColor()));
 
     // From now on, coordinates are in textElement coordinates
     textElement->getTransformation().transformCairo(cr);

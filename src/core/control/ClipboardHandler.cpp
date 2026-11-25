@@ -10,6 +10,7 @@
 #include <glib-object.h>    // for g_object_unref, g_s...
 
 #include "control/tools/EditSelection.h"          // for EditSelection
+#include "gui/swiftnote/SwiftBridge.h"            // for SwiftBridge
 #include "model/Element.h"                        // for Element, ELEMENT_TEXT
 #include "model/Text.h"                           // for Text
 #include "util/Util.h"                            // for DPI_NORMALIZATION_F...
@@ -42,6 +43,7 @@ ClipboardHandler::ClipboardHandler(ClipboardListener* listener, GtkWidget* widge
 ClipboardHandler::~ClipboardHandler() { g_signal_handler_disconnect(this->clipboard, this->handlerId); }
 
 static GdkAtom atomXournal = gdk_atom_intern_static_string("application/xournal");
+static GdkAtom atomPng = gdk_atom_intern_static_string("image/png");
 
 auto ClipboardHandler::paste() -> bool {
     /* The content flags below may be outdated: the owner-change signal is not emitted at all on MacOS and under X11
@@ -255,6 +257,22 @@ void ClipboardHandler::clipboardUpdated(GdkAtom atom) {
                                    reinterpret_cast<GtkClipboardReceivedFunc>(receivedClipboardContents), this);
 }
 
+void ClipboardHandler::pasteClipboardPng(GtkClipboard* clipboard, GtkSelectionData* selectionData,
+                                         ClipboardHandler* handler) {
+    const guchar* raw = gtk_selection_data_get_data(selectionData);
+    const gint len = gtk_selection_data_get_length(selectionData);
+    if (raw && len > 0) {
+        if (auto norm = swiftnote::SwiftBridge::normalizeClipboardPng(raw, static_cast<size_t>(len))) {
+            std::string pngStr(reinterpret_cast<const char*>(norm->bytes.data()), norm->bytes.size());
+            handler->listener->clipboardPastePng(std::move(pngStr), norm->width, norm->height);
+            return;
+        }
+    }
+    // Fallback to GTK image decoder if PNG bytes were unavailable or non-PNG
+    gtk_clipboard_request_image(clipboard, reinterpret_cast<GtkClipboardImageReceivedFunc>(pasteClipboardImage),
+                                handler);
+}
+
 void ClipboardHandler::pasteClipboardImage(GtkClipboard* clipboard, GdkPixbuf* pixbuf, ClipboardHandler* handler) {
     if (pixbuf) {
         handler->listener->clipboardPasteImage(pixbuf);
@@ -279,14 +297,14 @@ void ClipboardHandler::pasteClipboardText(GtkClipboard* clipboard, const gchar* 
     }
 }
 
-auto gtk_selection_data_targets_include_xournal(GtkSelectionData* selection_data) -> gboolean {
+static auto gtk_selection_data_targets_include_atom(GtkSelectionData* selection_data, GdkAtom targetAtom) -> gboolean {
     GdkAtom* targets = nullptr;
     gint n_targets = 0;
     gboolean result = false;
 
     if (gtk_selection_data_get_targets(selection_data, &targets, &n_targets)) {
         for (int i = 0; i < n_targets; i++) {
-            if (targets[i] == atomXournal) {
+            if (targets[i] == targetAtom) {
                 result = true;
                 break;
             }
@@ -300,8 +318,10 @@ auto gtk_selection_data_targets_include_xournal(GtkSelectionData* selection_data
 void ClipboardHandler::receivedClipboardContents(GtkClipboard* clipboard, GtkSelectionData* selectionData,
                                                  ClipboardHandler* handler) {
     handler->containsText = gtk_selection_data_targets_include_text(selectionData);
-    handler->containsXournal = gtk_selection_data_targets_include_xournal(selectionData);
-    handler->containsImage = gtk_selection_data_targets_include_image(selectionData, false);
+    handler->containsXournal = gtk_selection_data_targets_include_atom(selectionData, atomXournal);
+    handler->containsPng = gtk_selection_data_targets_include_atom(selectionData, atomPng);
+    handler->containsImage =
+            handler->containsPng || gtk_selection_data_targets_include_image(selectionData, false);
 
     handler->listener->clipboardPasteEnabled(handler->containsText || handler->containsXournal ||
                                              handler->containsImage);
@@ -313,15 +333,21 @@ void ClipboardHandler::receivedClipboardContents(GtkClipboard* clipboard, GtkSel
 }
 
 void ClipboardHandler::dispatchPaste() {
-    // Priority: xournal native format > text > image
+    // Priority: xournal native format > lossless PNG/image (when no plain text or pure image) > text > image
     if (this->containsXournal) {
         gtk_clipboard_request_contents(this->clipboard, atomXournal,
                                        reinterpret_cast<GtkClipboardReceivedFunc>(pasteClipboardContents), this);
-    } else if (this->containsText) {
+    } else if (this->containsText && !this->containsPng) {
         gtk_clipboard_request_text(this->clipboard, reinterpret_cast<GtkClipboardTextReceivedFunc>(pasteClipboardText),
                                    this);
+    } else if (this->containsPng) {
+        gtk_clipboard_request_contents(this->clipboard, atomPng,
+                                       reinterpret_cast<GtkClipboardReceivedFunc>(pasteClipboardPng), this);
     } else if (this->containsImage) {
         gtk_clipboard_request_image(this->clipboard,
                                     reinterpret_cast<GtkClipboardImageReceivedFunc>(pasteClipboardImage), this);
+    } else if (this->containsText) {
+        gtk_clipboard_request_text(this->clipboard, reinterpret_cast<GtkClipboardTextReceivedFunc>(pasteClipboardText),
+                                   this);
     }
 }

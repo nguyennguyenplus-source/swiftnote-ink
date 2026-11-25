@@ -114,7 +114,7 @@ public:
                                                  std::function<void(bool)> callback);
 
     void print();
-    void exportAsPdf();
+    void exportAsPdf(bool forceLightPaper = false);
     void exportAs();
     void quit(bool allowCancel = true);
 
@@ -355,6 +355,7 @@ public:
     void clipboardPasteEnabled(bool enabled) override;
     void clipboardPasteText(std::string text) override;
     void clipboardPasteImage(GdkPixbuf* img) override;
+    void clipboardPastePng(std::string pngBytes, uint32_t width, uint32_t height) override;
     void clipboardPasteXournal(ObjectInputStream& in) override;
     void deleteSelection() override;
 
@@ -400,6 +401,7 @@ private:
     bool toggleGeometryTool();
     void resetGeometryTool();
 
+public:
     /**
      * @brief Creates a compass if it's not on the current page yet. Deletes it if it already exists.
      * @return true if a compass was created
@@ -410,7 +412,10 @@ private:
      * @return true if a setsquare was created
      */
     bool toggleSetsquare();
+    [[nodiscard]] bool hasSetsquare() const;
+    [[nodiscard]] bool hasCompass() const;
 
+private:
     struct MissingPdfData;
     /**
      * Prompt the user that the PDF background is missing and offer solution options

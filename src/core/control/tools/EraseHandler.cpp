@@ -1,5 +1,7 @@
 #include "EraseHandler.h"
 
+#include "gui/swiftnote/SwiftBridge.h"
+
 #include <memory>   // for make_unique, unique_ptr
 #include <utility>  // for move
 #include <vector>   // for vector
@@ -143,4 +145,5 @@ void EraseHandler::finalize() {
     } else if (this->eraseDeleteUndoAction) {
         this->eraseDeleteUndoAction = nullptr;
     }
+    swiftnote::notifyEraseStrokeFinished();
 }

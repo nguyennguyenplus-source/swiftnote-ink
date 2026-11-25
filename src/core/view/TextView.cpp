@@ -1,5 +1,7 @@
 #include "TextView.h"
 
+#include "gui/swiftnote/SwiftBridge.h"
+
 #include <algorithm>  // for max
 #include <cstddef>    // for size_t
 
@@ -36,12 +38,13 @@ void TextView::draw(const Context& ctx) const {
     xoj::util::CairoSaveGuard saveGuard(ctx.cr);
 
     // make elements without audio translucent when highlighting elements with audio
+    const Color displayColor = swiftnote::DisplayState::resolveInkColor(text->getColor());
     if (ctx.fadeOutNonAudio && text->getAudioFilename().empty()) {
         cairo_set_operator(ctx.cr, CAIRO_OPERATOR_OVER);
-        Util::cairo_set_source_rgbi(ctx.cr, text->getColor(), OPACITY_NO_AUDIO);
+        Util::cairo_set_source_rgbi(ctx.cr, displayColor, OPACITY_NO_AUDIO);
     } else {
         cairo_set_operator(ctx.cr, CAIRO_OPERATOR_SOURCE);
-        Util::cairo_set_source_rgbi(ctx.cr, text->getColor());
+        Util::cairo_set_source_rgbi(ctx.cr, displayColor);
     }
 
     text->getTransformation().transformCairo(ctx.cr);

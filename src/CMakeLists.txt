@@ -125,6 +125,7 @@ if (WIN32)
     add_custom_command (
                 OUTPUT ${RESIZED_ICON}
                 COMMAND rsvg-convert ${PROJECT_SOURCE_DIR}/ui/pixmaps/com.github.xournalpp.xournalpp.svg --width=${SIZE} --height=${SIZE} -o ${RESIZED_ICON}
+                DEPENDS ${PROJECT_SOURCE_DIR}/ui/pixmaps/com.github.xournalpp.xournalpp.svg
 	)
   set (ICON_DEPS ${ICON_DEPS} ${RESIZED_ICON})
   unset (RESIZED_ICON)

@@ -1,5 +1,7 @@
 #include "BaseStrokeToolView.h"
 
+#include "gui/swiftnote/SwiftBridge.h"
+
 #include <cmath>
 
 #include <cairo.h>
@@ -14,7 +16,9 @@ using namespace xoj::view;
 
 BaseStrokeToolView::BaseStrokeToolView(Repaintable* parent, const Stroke& stroke):
         ToolView(parent),
-        cairoOp(stroke.getToolType() == StrokeTool::HIGHLIGHTER ? CAIRO_OPERATOR_MULTIPLY : CAIRO_OPERATOR_OVER),
+        cairoOp((stroke.getToolType() == StrokeTool::HIGHLIGHTER && !swiftnote::DisplayState::isBlackboardActive())
+                        ? CAIRO_OPERATOR_MULTIPLY
+                        : CAIRO_OPERATOR_OVER),
         strokeColor(strokeColorWithAlpha(stroke)),
         lineStyle(stroke.getLineStyle()),
         strokeWidth(stroke.getWidth()) {}
@@ -22,9 +26,10 @@ BaseStrokeToolView::BaseStrokeToolView(Repaintable* parent, const Stroke& stroke
 BaseStrokeToolView::~BaseStrokeToolView() noexcept = default;
 
 Color BaseStrokeToolView::strokeColorWithAlpha(const Stroke& s) {
-    Color c = s.getColor();
+    Color c = swiftnote::DisplayState::resolveInkColor(s.getColor());
     if (s.getToolType() == StrokeTool::HIGHLIGHTER) {
-        c.alpha = s.getFill() == -1 ? 120U : static_cast<uint8_t>(s.getFill());
+        c.alpha = s.getFill() == -1 ? (swiftnote::DisplayState::isBlackboardActive() ? 92U : 120U)
+                                    : static_cast<uint8_t>(s.getFill());
     } else {
         c.alpha = 255U;
     }

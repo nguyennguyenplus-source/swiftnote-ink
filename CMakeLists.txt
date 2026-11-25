@@ -358,6 +358,9 @@ if (xournalpp_LINT)
     include(clang-tidy)
 endif ()
 
+## Swift Note Rust core staticlib ##
+include(SwiftNoteRust)
+
 ## Source building ##
 add_subdirectory(src)
 

@@ -29,6 +29,7 @@ public:
 protected:
     Color vLineColor;
     double margin = 72.0;  // default = 1 inch. Negative values put the margin on the right hand side.
+    bool cornellMode = false;
 
     constexpr static Color DEFAULT_V_LINE_COLOR = Colors::xopp_deeppink;
     constexpr static Color ALT_DEFAULT_V_LINE_COLOR = Colors::xopp_midnightblue;

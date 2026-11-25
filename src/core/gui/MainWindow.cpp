@@ -26,6 +26,7 @@
 #include "gui/menus/menubar/ToolbarSelectionSubmenu.h"  // for ToolbarSelectionSubmenu
 #include "gui/scroll/ScrollHandling.h"                  // for ScrollHandling
 #include "gui/sidebar/Sidebar.h"                        // for Sidebar
+#include "gui/swiftnote/SwiftShell.h"                   // for SwiftShell
 #include "gui/toolbarMenubar/ToolMenuHandler.h"         // for ToolMenuHandler
 #include "gui/toolbarMenubar/model/ToolbarData.h"       // for ToolbarData
 #include "gui/toolbarMenubar/model/ToolbarModel.h"      // for ToolbarModel
@@ -73,6 +74,7 @@ MainWindow::MainWindow(GladeSearchpath* gladeSearchPath, Control* control, GtkAp
     sidebarWidget.reset(get("sidebar"), xoj::util::ref);
 
     loadMainCSS(gladeSearchPath, "xournalpp.css");
+    loadMainCSS(gladeSearchPath, "swiftnote.css");
 
     GtkOverlay* overlay = GTK_OVERLAY(get("mainOverlay"));
     this->pdfFloatingToolBox = std::make_unique<PdfFloatingToolbox>(this, overlay);
@@ -83,6 +85,9 @@ MainWindow::MainWindow(GladeSearchpath* gladeSearchPath, Control* control, GtkAp
     }
 
     initXournalWidget();
+
+    this->swiftShell = std::make_unique<swiftnote::SwiftShell>(this, this->control);
+    this->swiftShell->mount(overlay, get("mainBox"));
 
     setSidebarVisible(control->getSettings()->isSidebarVisible());
 
@@ -131,9 +136,10 @@ MainWindow::MainWindow(GladeSearchpath* gladeSearchPath, Control* control, GtkAp
         gtk_window_unmaximize(GTK_WINDOW(this->window));
     }
 
-    Util::execInUiThread([=]() {
-        // Execute after the window is visible, else the check won't work
-        control->setShowMenubar(control->getSettings()->isMenubarVisible());
+    Util::execInUiThread([this]() {
+        // Swift Note hides legacy Xournal++ menubar and multi-row toolbars by default
+        this->control->setShowMenubar(false);
+        this->setToolbarVisible(false);
     });
 
     // Drag and Drop
@@ -161,7 +167,8 @@ void MainWindow::populate(GladeSearchpath* gladeSearchPath) {
 
     createToolbar();
 
-    setToolbarVisible(control->getSettings()->isToolbarVisible());
+    // Keep legacy multi-row toolbars hidden; SwiftShell provides the minimalist single-row toolbar
+    setToolbarVisible(false);
 }
 
 GMenuModel* MainWindow::getMenuModel() const { return menubar->getModel(); }
@@ -711,6 +718,9 @@ void MainWindow::createToolbar() {
 
 void MainWindow::updatePageNumbers(size_t page, size_t pagecount, size_t pdfpage) {
     toolbar->setPageInfo(page, pagecount, pdfpage);
+    if (this->swiftShell) {
+        this->swiftShell->updatePageInfo(page, pagecount);
+    }
 }
 
 auto MainWindow::getMenubar() const -> Menubar* { return menubar.get(); }
@@ -736,6 +746,8 @@ void MainWindow::loadMainCSS(GladeSearchpath* gladeSearchPath, const gchar* cssF
 PdfFloatingToolbox* MainWindow::getPdfToolbox() const { return this->pdfFloatingToolBox.get(); }
 
 FloatingToolbox* MainWindow::getFloatingToolbox() const { return this->floatingToolbox.get(); }
+
+swiftnote::SwiftShell* MainWindow::getSwiftShell() const { return this->swiftShell.get(); }
 
 void MainWindow::setDPI() const {
     if (auto dpi = this->getControl()->getSettings()->getDisplayDpi(); dpi == -1) {

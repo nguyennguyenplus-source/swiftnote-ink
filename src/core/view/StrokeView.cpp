@@ -1,5 +1,7 @@
 #include "StrokeView.h"
 
+#include "gui/swiftnote/SwiftBridge.h"
+
 #include <algorithm>  // for max
 #include <cmath>      // for ceil
 
@@ -91,7 +93,8 @@ void StrokeView::draw(const Context& ctx) const {
                 cairo_set_source_rgba(cr, 1, 1, 1, static_cast<double>(fill) / 255.0);
             }
         } else {
-            Util::cairo_set_source_rgbi(cr, s->getColor(), static_cast<double>(fill) / 255.0);
+            Util::cairo_set_source_rgbi(cr, swiftnote::DisplayState::resolveInkColor(s->getColor()),
+                                        static_cast<double>(fill) / 255.0);
         }
         cairo_set_operator(cr, useMask ? CAIRO_OPERATOR_SOURCE : CAIRO_OPERATOR_OVER);
 
@@ -117,14 +120,17 @@ void StrokeView::draw(const Context& ctx) const {
     } else if (highlighter) {
         /**
          * Highlighter without filling.
+         * Use CAIRO_OPERATOR_OVER on Blackboard so highlighters remain crisp and legible on dark chalk surfaces.
          */
-        Util::cairo_set_source_rgbi(cr, s->getColor(), OPACITY_HIGHLIGHTER);
-        cairo_set_operator(cr, CAIRO_OPERATOR_MULTIPLY);
+        const bool isBlackboard = swiftnote::DisplayState::isBlackboardActive();
+        Util::cairo_set_source_rgbi(cr, swiftnote::DisplayState::resolveInkColor(s->getColor()),
+                                    isBlackboard ? (OPACITY_HIGHLIGHTER * 0.72) : OPACITY_HIGHLIGHTER);
+        cairo_set_operator(cr, isBlackboard ? CAIRO_OPERATOR_OVER : CAIRO_OPERATOR_MULTIPLY);
     } else {
         /**
          * Normal pen
          */
-        Util::cairo_set_source_rgbi(cr, s->getColor());
+        Util::cairo_set_source_rgbi(cr, swiftnote::DisplayState::resolveInkColor(s->getColor()));
         cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     }
 
@@ -160,9 +166,10 @@ void StrokeView::draw(const Context& ctx) const {
         }
 
         // Blit the mask onto the given cairo context
-        cairo_set_operator(ctx.cr, highlighter ? CAIRO_OPERATOR_MULTIPLY : CAIRO_OPERATOR_OVER);
+        const bool isBlackboard = swiftnote::DisplayState::isBlackboardActive();
+        cairo_set_operator(ctx.cr, (highlighter && !isBlackboard) ? CAIRO_OPERATOR_MULTIPLY : CAIRO_OPERATOR_OVER);
 
-        Util::cairo_set_source_rgbi(ctx.cr, s->getColor(), groupAlpha);
+        Util::cairo_set_source_rgbi(ctx.cr, swiftnote::DisplayState::resolveInkColor(s->getColor()), groupAlpha);
 
         mask.blitTo(ctx.cr);
     }
