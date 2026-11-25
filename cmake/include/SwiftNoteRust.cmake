@@ -51,13 +51,9 @@ if (WIN32)
     set_property(TARGET swiftnote_rs APPEND PROPERTY INTERFACE_LINK_LIBRARIES
         ws2_32 userenv bcrypt ntdll advapi32 synchronization ole32 shell32
     )
-elseif (UNIX AND NOT APPLE)
+elseif (UNIX)
     set_property(TARGET swiftnote_rs APPEND PROPERTY INTERFACE_LINK_LIBRARIES
         pthread dl m fontconfig
-    )
-elseif (APPLE)
-    set_property(TARGET swiftnote_rs APPEND PROPERTY INTERFACE_LINK_LIBRARIES
-        "-framework Security" "-framework CoreFoundation" pthread dl m
     )
 endif ()
 

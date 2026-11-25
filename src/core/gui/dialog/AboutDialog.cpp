@@ -14,10 +14,10 @@ class GladeSearchpath;
 
 constexpr auto UI_FILE = "about.glade";
 constexpr auto UI_DIALOG_NAME = "aboutDialog";
-constexpr auto GIT_REPO = "https://github.com/xournalpp/xournalpp";
-constexpr auto WEBSITE = "https://xournalpp.github.io";
-constexpr auto AUTHORS_LINK = "https://raw.githubusercontent.com/xournalpp/xournalpp/master/AUTHORS";
-constexpr auto LICENCE_LINK = "https://raw.githubusercontent.com/xournalpp/xournalpp/master/LICENSE";
+constexpr auto GIT_REPO = "https://github.com/nguyennguyenplus-source/swiftnote-ink";
+constexpr auto WEBSITE = "https://github.com/nguyennguyenplus-source/swiftnote-ink#readme";
+constexpr auto AUTHORS_LINK = "https://raw.githubusercontent.com/nguyennguyenplus-source/swiftnote-ink/main/AUTHORS";
+constexpr auto LICENCE_LINK = "https://raw.githubusercontent.com/nguyennguyenplus-source/swiftnote-ink/main/LICENSE";
 
 static GtkWindow* constructWindow(GladeSearchpath* gladeSearchPath) {
     Builder builder(gladeSearchPath, UI_FILE);

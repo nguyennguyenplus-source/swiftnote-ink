@@ -14,7 +14,7 @@
 [![Engine](https://img.shields.io/badge/Engine-C%2B%2B20%20%2B%20Rust-0F172A?style=flat&logo=rust&logoColor=white)](docs/ARCHITECTURE.md)
 [![UI](https://img.shields.io/badge/UI-GTK3%20%7C%20Zero%20Glassmorphism-2563EB?style=flat)](docs/ARCHITECTURE.md#4-zero-duplication-3-layout-gtk3-shell)
 [![Platforms](https://img.shields.io/badge/Platforms-Windows%2010%2F11%20%7C%20Linux%20(Wayland%2FX11)-059669?style=flat)](#installation--building-from-source)
-[![License: GPL v2](https://img.shields.io/badge/License-GPL--2.0-blue.svg)](LICENSE)
+[![License: GPL v2+](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
 
 [Key Features](#key-features) • [Comparison](#comparison) • [Architecture](#hybrid-architecture) • [Shortcuts](#keyboard-shortcuts) • [Build & Test](#installation--building-from-source) • [Limitations & Roadmap](#current-limitations--breakthrough-roadmap)
 
@@ -166,14 +166,16 @@ bash windows-setup/package-swiftnote-portable.sh build-ucrt64 ./dist-swiftnote
 ```bash
 # 1. Install build dependencies + Rust stable toolchain
 sudo apt-get update && sudo apt-get install -y \
-  cmake ninja-build g++ pkg-config gettext xvfb \
+  cmake ninja-build g++ pkg-config gettext help2man lsb-release xvfb \
   libgtk-3-dev libfontconfig-dev libpoppler-glib-dev poppler-data \
-  libzip-dev librsvg2-dev libsndfile1-dev portaudio19-dev \
-  liblua5.4-dev libgtksourceview-4-dev libqpdf-dev libgtest-dev
+  libxml2-dev libzip-dev librsvg2-dev libsndfile1-dev portaudio19-dev \
+  liblua5.4-dev libgtksourceview-4-dev libqpdf-dev libgtest-dev \
+  libx11-dev libxi-dev libxext-dev
 
 # 2. Configure, build & package (.deb + .tar.gz)
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_GTEST=ON -DENABLE_CPPTRACE=OFF -DCPACK_GENERATOR="DEB;TGZ"
-cmake --build build --target xournalpp test-units test-gtk-integration --parallel
+cmake --build build --parallel
+cmake --build build --target test-units test-gtk-integration --parallel
 (cd build && cpack -G "DEB;TGZ")
 ```
 
@@ -238,6 +240,6 @@ Building **Swift note v1.0** on top of Xournal++ exposed concrete structural cei
 
 **Swift note** is a derivative work of **[Xournal++](https://github.com/xournalpp/xournalpp)** (branched from `1.3.8+dev`), which in turn builds upon the original Xournal stroke recognizer. We gratefully acknowledge the Xournal++ maintainers and contributors — see [`AUTHORS`](AUTHORS) for the complete upstream contributor list.
 
-- **License:** Distributed under the **GNU General Public License v2.0** — see [`LICENSE`](LICENSE).
-- **Typography:** Ships with [Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans) under the SIL Open Font License 1.1.
-- **Iconography:** Toolbar glyphs inspired by clean geometric vector sets (Lucide / custom SVG).
+- **License:** Distributed under the **GNU General Public License v2.0 or later (`GPL-2.0-or-later`)** — see [`LICENSE`](LICENSE) and [`copyright.txt`](copyright.txt) for complete per-file and third-party dependency attributions.
+- **Typography:** Ships with [Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans) under the **SIL Open Font License 1.1** — see [`ui/fonts/OFL.txt`](ui/fonts/OFL.txt).
+- **Iconography:** Toolbar glyphs inspired by clean geometric vector sets (Lucide ISC / custom SVG).

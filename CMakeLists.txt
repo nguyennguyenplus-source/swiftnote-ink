@@ -1,17 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 cmake_policy(VERSION ${CMAKE_VERSION})
 
-## The CMAKE_OSX_DEPLOYMENT_TARGET must be set before project(), so don't move the following lines further down.
-if(APPLE)
-    if (NOT CMAKE_OSX_DEPLOYMENT_TARGET)
-        # Use the same target as the dependencies shipped by the CI
-        file(STRINGS mac-setup/jhbuild-version.lock _DEPLOY_TARGET REGEX "^deployment_target=.*")
-        string(REGEX REPLACE "^[^=]*=" "" _DEPLOY_TARGET_VALUE ${_DEPLOY_TARGET})
-        set(CMAKE_OSX_DEPLOYMENT_TARGET "${_DEPLOY_TARGET_VALUE}" CACHE STRING "Minimum OS X deployment version" FORCE)
-    endif()
-    message(STATUS "MacOS X Deployment target: ${CMAKE_OSX_DEPLOYMENT_TARGET}")
-endif()
-
 
 if(NOT CMAKE_BUILD_TYPE)
     # set default build type to RelWithDebInfo, we never supported multi config generators, therefore this is fine
@@ -22,16 +11,16 @@ endif()
 ## Also update changelog in debian folder!
 project(xournalpp
         VERSION 1.3.8
-        DESCRIPTION "Xournal++ - Open source hand note-taking program"
-        HOMEPAGE_URL "https://xournalpp.github.io/"
+        DESCRIPTION "Swift note - Calm, tactile handwriting & PDF annotation (hybrid C++20/GTK3 + Rust fork of Xournal++)"
+        HOMEPAGE_URL "https://github.com/nguyennguyenplus-source/swiftnote-ink"
         LANGUAGES CXX C)
 # according to https://cmake.org/cmake/help/latest/command/project.html we must fix the suffix:
 # And https://gitlab.kitware.com/cmake/cmake/-/issues/16716 is still open:
-set(VERSION_SUFFIX "+dev")
+set(VERSION_SUFFIX "+swiftnote")
 set(PROJECT_VERSION "${PROJECT_VERSION}${VERSION_SUFFIX}")
 set(xournalpp_VERSION ${PROJECT_VERSION})
 set(CMAKE_PROJECT_VERSION ${PROJECT_VERSION})
-set(PROJECT_CONTACT "core.xournalpp@github.com")
+set(PROJECT_CONTACT "https://github.com/nguyennguyenplus-source/swiftnote-ink/issues")
 
 ## CMAKE_Variables
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/find" "${PROJECT_SOURCE_DIR}/cmake/include")
@@ -432,7 +421,7 @@ configure_file(
 add_custom_target(uninstall
         COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake/cmake_uninstall.cmake
 
-        COMMENT "Uninstall entire Xournal++"
+        COMMENT "Uninstall entire Swift note"
         )
 
 message("
@@ -455,12 +444,12 @@ Configuration:
 # ...
 ##############################
 
-set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
+set(CPACK_PACKAGE_NAME "swiftnote")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION}~git${PACKAGE_TIMESTAMP}-${RELEASE_IDENTIFIER}-${DISTRO_CODENAME})
 set(CPACK_PACKAGE_DESCRIPTION_FILE "${PROJECT_SOURCE_DIR}/package_description")
 set(CPACK_PACKAGE_CONTACT "${PROJECT_CONTACT}")
-set(CPACK_PACKAGE_INSTALL_DIRECTORY "Xournal++")
-set(CPACK_PACKAGE_FILE_NAME "xournalpp-${PROJECT_VERSION}-${DISTRO_NAME}-${DISTRO_CODENAME}-${PACKAGE_ARCH}")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "Swift note")
+set(CPACK_PACKAGE_FILE_NAME "swiftnote-${PROJECT_VERSION}-${DISTRO_NAME}-${DISTRO_CODENAME}-${PACKAGE_ARCH}")
 set(CPACK_OUTPUT_FILE_PREFIX packages)
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
 set(CPACK_STRIP_FILES ON) # Debian packages must be stripped from debug messages, so lintian doesn't complain

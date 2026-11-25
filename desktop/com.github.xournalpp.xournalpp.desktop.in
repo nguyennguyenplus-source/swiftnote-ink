@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
 
-Name=Xournal++
-GenericName=Note-taking application
-Comment=Take handwritten notes
-Keywords=tablet;Wacom;pen input;PDF Annotation;markup;journal;handwriting;diary;notes;
+Name=Swift note
+GenericName=Handwriting & PDF Annotation
+Comment=Calm, tactile handwriting and PDF annotation (fork of Xournal++)
+Keywords=tablet;Wacom;pen input;PDF Annotation;markup;journal;handwriting;notes;swiftnote;
 
 Exec=xournalpp-wrapper %f
 SingleMainWindow=false

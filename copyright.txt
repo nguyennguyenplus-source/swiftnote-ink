@@ -1,10 +1,13 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Xournal++
-Upstream-Contact: https://github.com/xournalpp/xournalpp/issues/
-Source: https://github.com/xournalpp/xournalpp/
+Upstream-Name: Swift note (forked from Xournal++)
+Upstream-Contact: https://github.com/nguyennguyenplus-source/swiftnote-ink/issues
+Source: https://github.com/nguyennguyenplus-source/swiftnote-ink
+Comment: Derivative work of Xournal++ (https://github.com/xournalpp/xournalpp).
+         Modified in 2026 by Swift note Contributors per GNU GPL v2 Section 2(a).
 
 Files: *
-Copyright: 2010-2021, Andreas Butti <andreas.butti@gmail.com>
+Copyright: 2026, Swift note Contributors
+           2010-2021, Andreas Butti <andreas.butti@gmail.com>
            2012-2018, Wilson Brenna <wilson@wbrenna.homelinux.com>
            2015-2016, Marek Pikuła <marek@pikula.tk>
            2017-2019, Peter Klausing <peetCreative@users.noreply.github.com>
@@ -73,8 +76,26 @@ Files: ui/iconsColor-dark/hicolor/scalable/actions/xopp-setsquare.svg
 Copyright: 2022, Mario Franzbonenkamp
 License: CC-BY-SA-4.0
 
-Files: ui/pixmaps/com.github.xournalpp.xournalpp.svg
-       ui/pixmaps/com.github.xournalpp.xournalpp.png
+Files: rust/swiftnote-rs/*
+       src/core/gui/swiftnote/*
+       cmake/include/SwiftNoteRust.cmake
+       ui/swiftnote.css
+       assets/swiftnote-logo.svg
+       assets/swiftnote-logo-dark.svg
+       ui/pixmaps/com.github.xournalpp.xournalpp.svg
+       ui/pixmaps/swiftnote-logo-light.svg
+       ui/pixmaps/swiftnote-logo-light.png
+       ui/pixmaps/swiftnote-logo-dark.svg
+       ui/pixmaps/swiftnote-logo-dark.png
+Copyright: 2026, Swift note Contributors
+License: GPL-2+
+
+Files: ui/fonts/PlusJakartaSans.ttf
+Copyright: 2020, The Plus Jakarta Sans Project Authors (https://github.com/tokotype/PlusJakartaSans)
+License: OFL-1.1
+Comment: Full SIL Open Font License 1.1 text is bundled in ui/fonts/OFL.txt.
+
+Files: ui/pixmaps/com.github.xournalpp.xournalpp.png
        ui/pixmaps/application-x-xojpp.svg
        ui/pixmaps/application-x-xopp.svg
        ui/pixmaps/application-x-xopt.svg

@@ -1,8 +1,8 @@
-xournalpp (1.3.8+dev-1) UNRELEASED; urgency=medium
+swiftnote (1.3.8+swiftnote-1) unstable; urgency=medium
 
-  *
+  * Swift note v1.0.0 hybrid C++20/GTK3 + Rust fork of Xournal++ 1.3.8+dev
 
- -- Benjamin Hennion <17818041+bhennion@users.noreply.github.com>  Fri, 25 Sep 2026 08:12:37 +0200
+ -- Swift note Contributors <https://github.com/nguyennguyenplus-source/swiftnote-ink>  Wed, 25 Nov 2026 16:00:00 +0700
 
 xournalpp (1.3.8-1) unstable; urgency=medium
 
