@@ -492,7 +492,7 @@ void SwiftShell::loadBundledFonts() {
 #ifdef _WIN32
     AddFontResourceExW(fontPath.wstring().c_str(), SN_FR_PRIVATE, nullptr);
 #else
-    FcConfigAppFontAddFile(nullptr, reinterpret_cast<const FcChar8*>(char_cast(fontPath.u8string().c_str())));
+    FcConfigAppFontAddFile(nullptr, reinterpret_cast<const FcChar8*>(fontPath.c_str()));
 #endif
 }
 

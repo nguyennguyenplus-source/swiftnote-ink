@@ -18,7 +18,7 @@ echo "Output dir: $DIST_DIR"
 echo "UCRT64    : $PREFIX"
 
 echo "[1/6] Running CMake install..."
-(cd "$BUILD_DIR" && cmake --install . --prefix "$DIST_DIR" >/dev/null)
+(cd "$BUILD_DIR" && cmake --install . --prefix "$DIST_DIR")
 
 echo "[2/6] Copying Swift note executable & runtime DLLs..."
 cp "$DIST_DIR/bin/xournalpp.exe" "$DIST_DIR/bin/SwiftNote.exe"
