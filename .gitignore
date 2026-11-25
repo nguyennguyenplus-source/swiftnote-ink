@@ -31,11 +31,18 @@ ppa-build
 build*/
 desktop/desktop_install.sh
 
-# Rust (Swift note)
+# Rust & Swift note local tooling / AI agent helpers (never push to GitHub)
 rust/**/target/
 dist-swiftnote/
 non-existing-file-path
 .impeccable/
+.agents/
+.claude/
+.cursor/
+.gemini/
+.windsurf/
+scratch/
+*.local.*
 
 # NetBeans
 nbproject/
